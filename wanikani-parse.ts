@@ -10,7 +10,8 @@ var wanikani = data.flatMap((o: any) => ({
                               lesson_position: o.data.lesson_position as number,
                               gloss: o.data.meanings.map((o: any) => o.meaning).join(', ') as string,
                             }));
-
+wanikani.sort((a, b) =>
+                  (a.level < b.level) ? -1 : (a.level > b.level) ? 1 : a.lesson_position < b.lesson_position ? -1 : 1);
 var dict: Simplified['words'] = JSON.parse(readFileSync('jmdict-eng-3.0.1.json', 'utf8')).words;
 
 function upsert2(map: BigMap, key: string, subkey: string, val: string) {
@@ -31,16 +32,18 @@ function upsert2(map: BigMap, key: string, subkey: string, val: string) {
 type BigMap = Map<string, Map<string, string[]>>; // kanji -> kana -> gloss
 var kanjiToKanaToSenses: BigMap = new Map();
 for (const entry of dict) {
-  const kanji = entry.kanji.filter(o => !o.tags.includes('iK')).map(o => o.text); // omit irregular kanji
-  for (const j of kanji) {
-    const kana = entry.kana.filter(o => o.appliesToKanji[0] === '*' || o.appliesToKanji.includes(j)).map(o => o.text);
-    for (const n of kana) {
+  const kanji = entry.kanji.filter(o => !o.tags.includes('iK'))
+                    .map(o => [o.text, o.common] as [string, boolean]); // omit irregular kanji
+  for (const [j, jcommon] of kanji) {
+    const kana = entry.kana.filter(o => o.appliesToKanji[0] === '*' || o.appliesToKanji.includes(j))
+                     .map(o => [o.text, o.common] as [string, boolean]);
+    for (const [n, ncommon] of kana) {
       const gloss = entry.sense
                         .filter(sense => (sense.appliesToKanji[0] === '*' || sense.appliesToKanji.includes(j)) &&
                                          (sense.appliesToKana[0] === '*' || sense.appliesToKana.includes(n)))
                         .map(sense => sense.gloss.map(g => g.text).join(', '))
                         .join('; ') +
-                    ` (#${entry.id})`;
+                    ` (#${entry.id}${(jcommon || ncommon) ? ', common!' : ''})`;
       upsert2(kanjiToKanaToSenses, j, n, gloss);
     }
   }
@@ -48,18 +51,19 @@ for (const entry of dict) {
 
 for (const card of wanikani) {
   const {kanji, kanas, gloss} = card;
+  const summary = `${kanji} ${kanas.join(' ')} (§${card.level}.${card.lesson_position} ${gloss})`;
   let hit = kanjiToKanaToSenses.get(kanji)?.get(kanas[0]);
   if (hit) {
-    console.log(`@ ${kanji} ${kanas.join(' ')} (${gloss}) ${hit.join('//')}`);
+    console.log(`@ ${summary} ${hit.join('//')}`);
   } else {
     if (kanji.includes('〜')) {
       hit = kanjiToKanaToSenses.get(kanji.replace('〜', ''))?.get(kanas[0]);
-      if (hit) { console.log(`@ ${kanji} ${kanas.join(' ')} (${gloss}) ${hit.join('//')}`); }
+      if (hit) { console.log(`@ ${summary} ${hit.join('//')}`); }
     } else if (kanji.includes('する')) {
       hit = kanjiToKanaToSenses.get(kanji.replace('する', ''))?.get(kanas[0].replace('する', ''));
-      if (hit) { console.log(`@ ${kanji} ${kanas.join(' ')} (${gloss}) ${hit.join('//')}`); }
+      if (hit) { console.log(`@ ${summary} ${hit.join('//')}`); }
     } else {
-      console.log(`! ${kanji} ${kanas.join(' ')} (${gloss})`);
+      console.log(`! ${summary}`);
     }
   }
 }
