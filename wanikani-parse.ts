@@ -89,8 +89,8 @@ const glosses = new Map([
 
 const kanjiToJmdict = new Map([
   ['駆ける', 1244720], ['揚げ', 1545490], ['ばい菌', 1575400], ['恨む', 1289780], ['卸', 1589530], ['三', 1579350],
-  ['〜才', 1294940], ['元', 1260670], ['かき氷', 1399920], ['宝くじ', 1516170], ['ゴミ箱', 1005010], ['妻', 1294330],
-  ['腰', 1288340], ['河', 1390020], ['解ける', 1198910]
+  ['元', 1260670], ['かき氷', 1399920], ['宝くじ', 1516170], ['ゴミ箱', 1005010], ['妻', 1294330], ['腰', 1288340],
+  ['河', 1390020], ['解ける', 1198910]
 ]);
 
 const makeSummary = (card: typeof wanikani[0]) =>
@@ -116,6 +116,10 @@ const lines = wanikani.map(card => {
       kanji = '御手洗い';
       summary = makeSummary({...card, kanji});
       hit = kanjiToKanaToSenses.get(kata2hira(kanji))?.get(kata2hira(kanas[0]));
+    } else if (kanji === '〜才') {
+      // this needs to be a special case because we need to strip 〜 (below) AND provide a specific JMdict id.
+      hit = kanjiToKanaToSenses.get(kata2hira('才'))?.get(kata2hira(kanas[0])) || [];
+      hit = [hit.find(s => s.includes('1294940')) || ''];
     }
   }
   if (hit) {
@@ -137,13 +141,15 @@ const lines = wanikani.map(card => {
   const skipped = lines.filter(s => !s).length;
   const bang = lines.filter(s => s ? s.startsWith('!') : false).length;
   const mult = lines.filter(s => s ? s.includes('//') : false).length;
+  const nohash = lines.filter(s => s ? !s.includes('#') : false).length;
   console.log(`Statistics:
 - ${wanikani.length} vocabulary from Wanikani
 - ${skipped} skipped
+- ${nohash} custom definitions used
 - ${bang} unable to find JMdict defintion ${bang === 0 ? '✅' : '❌'}
 - ${mult} found multiple JMdict definitions  ${mult === 0 ? '✅' : '❌'}`);
 
   const linesOk = lines.filter(s => !!s);
-  writeFileSync('table.txt', linesOk.map(s => s?.replace(/\((§[0-9.]+)[^)]+\) \(/, '($1. ')).join('\n'));
+  writeFileSync('table.txt', linesOk.map(s => s?.replace(/\((§[0-9.]+)[^)]+\) \(/, '($1 ')).join('\n'));
   writeFileSync('table-with-wanikani.txt', linesOk.join('\n'));
 }
