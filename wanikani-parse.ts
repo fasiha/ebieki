@@ -1,4 +1,4 @@
-import {readFileSync} from 'fs';
+import {readFileSync, writeFileSync} from 'fs';
 import {Simplified} from './interfaces';
 import {kata2hira} from './kana';
 
@@ -13,7 +13,6 @@ var wanikani = data.flatMap((o: any) => ({
                             }));
 wanikani.sort((a, b) =>
                   (a.level < b.level) ? -1 : (a.level > b.level) ? 1 : a.lesson_position < b.lesson_position ? -1 : 1);
-var dict: Simplified['words'] = JSON.parse(readFileSync('jmdict-eng-3.0.1.json', 'utf8')).words;
 
 function upsert2(map: BigMap, key: string, subkey: string, val: string) {
   const hit = map.get(key);
@@ -32,20 +31,23 @@ function upsert2(map: BigMap, key: string, subkey: string, val: string) {
 
 type BigMap = Map<string, Map<string, string[]>>; // kanji -> kana -> gloss
 var kanjiToKanaToSenses: BigMap = new Map();
-for (const entry of dict) {
-  const kanji = entry.kanji.filter(o => !o.tags.includes('iK'))
-                    .map(o => [o.text, o.common] as [string, boolean]); // omit irregular kanji
-  for (const [j, jcommon] of kanji) {
-    const kana = entry.kana.filter(o => o.appliesToKanji[0] === '*' || o.appliesToKanji.includes(j))
-                     .map(o => [o.text, o.common] as [string, boolean]);
-    for (const [n, ncommon] of kana) {
-      const gloss = entry.sense
-                        .filter(sense => (sense.appliesToKanji[0] === '*' || sense.appliesToKanji.includes(j)) &&
-                                         (sense.appliesToKana[0] === '*' || sense.appliesToKana.includes(n)))
-                        .map(sense => sense.gloss.map(g => g.text).join(', '))
-                        .join('; ');
-      const full = `(${gloss}. #${entry.id}${(jcommon || ncommon) ? ', common!' : ''})`;
-      upsert2(kanjiToKanaToSenses, kata2hira(j), kata2hira(n), full);
+{
+  var dict: Simplified['words'] = JSON.parse(readFileSync('jmdict-eng-3.0.1.json', 'utf8')).words;
+  for (const entry of dict) {
+    const kanji = entry.kanji.filter(o => !o.tags.includes('iK'))
+                      .map(o => [o.text, o.common] as [string, boolean]); // omit irregular kanji
+    for (const [j, jcommon] of kanji) {
+      const kana = entry.kana.filter(o => o.appliesToKanji[0] === '*' || o.appliesToKanji.includes(j))
+                       .map(o => [o.text, o.common] as [string, boolean]);
+      for (const [n, ncommon] of kana) {
+        const gloss = entry.sense
+                          .filter(sense => (sense.appliesToKanji[0] === '*' || sense.appliesToKanji.includes(j)) &&
+                                           (sense.appliesToKana[0] === '*' || sense.appliesToKana.includes(n)))
+                          .map(sense => sense.gloss.map(g => g.text).join(', '))
+                          .join('; ');
+        const full = `(${gloss}. #${entry.id}${(jcommon || ncommon) ? ', common!' : ''})`;
+        upsert2(kanjiToKanaToSenses, kata2hira(j), kata2hira(n), full);
+      }
     }
   }
 }
@@ -94,13 +96,13 @@ const kanjiToJmdict = new Map([
 const makeSummary = (card: typeof wanikani[0]) =>
     `${card.kanji} ${card.kanas.join(' ')} (§${card.level}.${card.lesson_position} ${card.gloss})`;
 
-for (const card of wanikani) {
-  let {kanji, kanas, gloss} = card;
+const lines = wanikani.map(card => {
+  let {kanji, kanas} = card;
   let summary = makeSummary(card);
   let hit = kanjiToKanaToSenses.get(kata2hira(kanji))?.get(kata2hira(kanas[0]));
   {
     // special rules
-    if (skip.has(kanji)) { continue; }
+    if (skip.has(kanji)) { return; }
     if (glosses.has(kanji)) {
       hit = [glosses.get(kanji) || 'TYPESCRIPT PACIFICATION'].map(s => `(${s})`)
     } else if (kanjiToJmdict.has(kanji)) {
@@ -117,16 +119,31 @@ for (const card of wanikani) {
     }
   }
   if (hit) {
-    console.log(`${summary} ${hit.join('//')}`);
+    return `${summary} ${hit.join('//')}`;
   } else {
     if (kanji.includes('〜')) {
       hit = kanjiToKanaToSenses.get(kanji.replace('〜', ''))?.get(kanas[0]);
-      if (hit) { console.log(`${summary} ${hit.join('//')}`); }
+      if (hit) { return (`${summary} ${hit.join('//')}`); }
     } else if (kanji.includes('する')) {
       hit = kanjiToKanaToSenses.get(kanji.replace('する', ''))?.get(kanas[0].replace('する', ''));
-      if (hit) { console.log(`${summary} ${hit.join('//')}`); }
+      if (hit) { return (`${summary} ${hit.join('//')}`); }
     } else {
-      console.log(`! ${summary}`);
+      // No luck finding JMDict
+      return (`! ${summary}`);
     }
   }
+});
+{
+  const skipped = lines.filter(s => !s).length;
+  const bang = lines.filter(s => s ? s.startsWith('!') : false).length;
+  const mult = lines.filter(s => s ? s.includes('//') : false).length;
+  console.log(`Statistics:
+- ${wanikani.length} vocabulary from Wanikani
+- ${skipped} skipped
+- ${bang} unable to find JMdict defintion ${bang === 0 ? '✅' : '❌'}
+- ${mult} found multiple JMdict definitions  ${mult === 0 ? '✅' : '❌'}`);
+
+  const linesOk = lines.filter(s => !!s);
+  writeFileSync('table.txt', linesOk.map(s => s?.replace(/\((§[0-9.]+)[^)]+\) \(/, '($1. ')).join('\n'));
+  writeFileSync('table-with-wanikani.txt', linesOk.join('\n'));
 }
