@@ -85,6 +85,12 @@ const glosses = new Map([
 ]);
 // 田代島 is a place-name?
 
+const kanjiToJmdict = new Map([
+  ['駆ける', 1244720], ['揚げ', 1545490], ['ばい菌', 1575400], ['恨む', 1289780], ['卸', 1589530], ['三', 1579350],
+  ['〜才', 1294940], ['元', 1260670], ['かき氷', 1399920], ['宝くじ', 1516170], ['ゴミ箱', 1005010], ['妻', 1294330],
+  ['腰', 1288340], ['河', 1390020], ['解ける', 1198910]
+]);
+
 const makeSummary = (card: typeof wanikani[0]) =>
     `${card.kanji} ${card.kanas.join(' ')} (§${card.level}.${card.lesson_position} ${card.gloss})`;
 
@@ -97,6 +103,9 @@ for (const card of wanikani) {
     if (skip.has(kanji)) { continue; }
     if (glosses.has(kanji)) {
       hit = [glosses.get(kanji) || 'TYPESCRIPT PACIFICATION'].map(s => `(${s})`)
+    } else if (kanjiToJmdict.has(kanji)) {
+      const id = '' + (kanjiToJmdict.get(kanji) || 0);
+      hit = [(hit || []).find(s => s.includes(id)) || '']; // DOUBLE typescript pacification needed!
     } else if (kanji === 'ハチの巣') {
       kanji = '蜂の巣';
       summary = makeSummary({...card, kanji});
@@ -108,14 +117,14 @@ for (const card of wanikani) {
     }
   }
   if (hit) {
-    console.log(`@ ${summary} ${hit.join('//')}`);
+    console.log(`${summary} ${hit.join('//')}`);
   } else {
     if (kanji.includes('〜')) {
       hit = kanjiToKanaToSenses.get(kanji.replace('〜', ''))?.get(kanas[0]);
-      if (hit) { console.log(`@ ${summary} ${hit.join('//')}`); }
+      if (hit) { console.log(`${summary} ${hit.join('//')}`); }
     } else if (kanji.includes('する')) {
       hit = kanjiToKanaToSenses.get(kanji.replace('する', ''))?.get(kanas[0].replace('する', ''));
-      if (hit) { console.log(`@ ${summary} ${hit.join('//')}`); }
+      if (hit) { console.log(`${summary} ${hit.join('//')}`); }
     } else {
       console.log(`! ${summary}`);
     }
