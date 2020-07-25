@@ -1,12 +1,16 @@
-var fs = require('fs');
+import assert from 'assert';
+import {writeFileSync} from 'fs';
 import fetch, {RequestInit} from 'node-fetch';
+
+require('dotenv').config();
+const {WANIKANI_TOKEN} = process.env;
+assert(WANIKANI_TOKEN, 'Put Wanikani v2 token in .env as WANIKANI_TOKEN=YOUR_TOKEN');
 
 function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
 export async function download(verbose = true) {
   const ret = [];
   let url = 'https://api.wanikani.com/v2/subjects?types=vocabulary';
-  const opt:
-      RequestInit = {headers: {'Wanikani-Revision': '20170710', Authorization: `Bearer ${process.env.WANIKANI_TOKEN}`}};
+  const opt: RequestInit = {headers: {'Wanikani-Revision': '20170710', Authorization: `Bearer ${WANIKANI_TOKEN}`}};
   while (true) {
     const fullres = await fetch(url, opt);
     if (fullres.ok) {
@@ -26,6 +30,6 @@ export async function download(verbose = true) {
 if (require.main === module) {
   (async function main() {
     const ret = await download();
-    fs.writeFileSync('all-vocab.json', JSON.stringify(ret, null, 1));
+    writeFileSync('all-vocab.json', JSON.stringify(ret, null, 1));
   })();
 }
