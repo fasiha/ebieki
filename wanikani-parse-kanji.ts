@@ -125,11 +125,13 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
       console.log({IDX, unlocked: Array.from(unlockedEither).join(' '), locked: Array.from(lockedKanji).join(' ')});
     }
     const cannotLearnNow: string[] = [];
+    let addedSomething = false;
     for (const k of lockedKanji) {
       const rad = kanjiToRadicals.get(k);
       if (!rad) { continue; } // TypeScript pacification
       const radStrings = rad.map(radicalToString);
       if (radStrings.every(s => unlockedEither.has(s))) {
+        addedSomething = true;
         // we can learn this now
         lockedKanji.delete(k);
         // TODO maybe organize the set of kanji added this iteration further?
@@ -139,6 +141,9 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
       }
     }
     if (cannotLearnNow.length === 0) { break; }
+    // If you add kanji above that to the learned pile, and continue below, you might find kanji with 0 unknown
+    // radicals, so just loop
+    if (addedSomething) { continue; }
 
     // find kanji with fewest unknown radicals, learn those radicals+kanji. Stop when you find two kanji with same # of
     // unknown radicals
@@ -150,6 +155,7 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
     let unlockableIdxStop = -1;
     for (let [j, rads] of unlockableRadicals.entries()) {
       if (!unlockableRadicals[j + 1] || rads.r.length < unlockableRadicals[j + 1].r.length) {
+        addedSomething = true;
         for (const r of rads.r) {
           unlockedEither.add(r);
           lockedKanji.delete(r); // probably not necessary
@@ -161,7 +167,8 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
         break;
       }
     }
-    if (unlockableIdxStop >= 0 && unlockableIdxStop < unlockableRadicals.length) {
+    if (addedSomething) { continue; }
+    if (unlockableIdxStop >= 0 && unlockableIdxStop < unlockableRadicals.length && lockedKanji.size > 0) {
       // We've found kanji with equal number of unknown radicals (i.e., two kanji unknown, each with two unknown
       // radicals). Of the kanji with the fewest unknown radicals, find the radical that's most similar to known
       // radicals and learn that. If there's more than one such radical (i.e., two radicals equally similar to known
@@ -193,7 +200,7 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
   if (verbose) {
     console.log('final', {unlocked: Array.from(unlockedEither).join(' '), locked: Array.from(lockedKanji).join(' ')});
   }
-  return Array.from(unlockedEither);
+  return {unlocked: unlockedEither, locked: lockedKanji};
 }
 
 function enumerateUpstream(raw: string) {
@@ -230,6 +237,9 @@ if (module === require.main) {
   const unknown = process.argv[2] ? fs.readFileSync(process.argv[2], 'utf8')
                                   : '配る・賦る購入照明深い変わっている・変わってる順路最初白子成育過程示す明';
   const known = process.argv[3] || '日月';
-  console.log(findBestPath(unknown, known, {limit: 100, verbose: false}).join(' '));
+
+  const res = findBestPath(unknown, known, {limit: 1000, verbose: false});
+  console.log(Array.from(res.unlocked).join(' '));
+  console.log(Array.from(res.locked).join('!'));
   console.log(enumerateUpstream('配子成育'))
 }
