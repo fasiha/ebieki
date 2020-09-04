@@ -118,6 +118,9 @@ const radicalSet = new Set(radicals.filter(r => !r.hidden_at).flatMap(r => radic
  */
 function findBestPath(newKanji: string, knownKanji: string, {verbose = false, limit = Infinity} = {}) {
   let unlockedEither: Set<string> = new Set(enumerateUpstream(knownKanji));
+  const unlockedNotes: Map<string, string> =
+      new Map(Array.from(unlockedEither, s => [s, 'Already known ' + kanjiToRadicals.has(s) ? 'kanji' : 'radical']));
+
   let lockedKanji = new Set(newKanji.split('').filter(k => kanjiToRadicals.has(k) && !unlockedEither.has(k)));
 
   for (let IDX = 0; IDX < limit && lockedKanji.size > 0; IDX++) {
@@ -136,6 +139,7 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
         lockedKanji.delete(k);
         // TODO maybe organize the set of kanji added this iteration further?
         unlockedEither.add(k);
+        unlockedNotes.set(k, 'All radicals known');
       } else {
         cannotLearnNow.push(k);
       }
@@ -158,9 +162,11 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
         addedSomething = true;
         for (const r of rads.r) {
           unlockedEither.add(r);
+          unlockedNotes.set(r, `To learn ${rads.k}: fewest unknown radicals`);
           lockedKanji.delete(r); // probably not necessary
         }
         unlockedEither.add(rads.k);
+        unlockedNotes.set(rads.k, `All radicals known`);
         lockedKanji.delete(rads.k);
       } else {
         unlockableIdxStop = j;
@@ -179,12 +185,17 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
       if (!radicalSubset[1] || radicalSubset[0].unknown < radicalSubset[1].unknown) {
         for (const r of radicalSubset[0].r) {
           unlockedEither.add(r);
+          unlockedNotes.set(
+              r, `To learn ${radicalSubset[0].k}: ${radicalSubset[0].unknown} unknown of ${radicalSubset[0].r.length}`);
+
           lockedKanji.delete(r);
         }
         unlockedEither.add(radicalSubset[0].k);
+        unlockedNotes.set(radicalSubset[0].k, `All radicals learned`);
+
         lockedKanji.delete(radicalSubset[0].k);
       } else {
-        // Find the radical that unlocks the most
+        // Find the radical that unlocks the most overall
         const whichUnlocksMost =
             new Set(radicalSubset.filter(o => o.unknown === radicalSubset[0].unknown).flatMap(o => o.r));
         const freq = hist(
@@ -193,6 +204,8 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
             x => x);
         const bestRadical = freq[0].val;
         unlockedEither.add(bestRadical);
+        unlockedNotes.set(
+            bestRadical, `Unlocks ${freq[0].freq} more kanji; best out of ${radicalSubset.flatMap(o => o.r).join('')}`);
         lockedKanji.delete(bestRadical);
       }
     }
@@ -200,7 +213,7 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
   if (verbose) {
     console.log('final', {unlocked: Array.from(unlockedEither).join(' '), locked: Array.from(lockedKanji).join(' ')});
   }
-  return {unlocked: unlockedEither, locked: lockedKanji};
+  return {unlocked: unlockedEither, locked: lockedKanji, notes: unlockedNotes};
 }
 
 function enumerateUpstream(raw: string) {
@@ -239,7 +252,8 @@ if (module === require.main) {
   const known = process.argv[3] || '日月';
 
   const res = findBestPath(unknown, known, {limit: 1000, verbose: false});
-  console.log(Array.from(res.unlocked).join(' '));
+  console.log(
+      Array.from(res.unlocked, k => `${k} (${kanjiToRadicals.has(k) ? 'K' : 'R'}: ${res.notes.get(k)})`).join('\n'));
   console.log(Array.from(res.locked).join('!'));
   console.log(enumerateUpstream('配子成育'))
 }
