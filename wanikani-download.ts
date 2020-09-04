@@ -6,10 +6,16 @@ require('dotenv').config();
 const {WANIKANI_TOKEN} = process.env;
 assert(WANIKANI_TOKEN, 'Put Wanikani v2 token in .env as WANIKANI_TOKEN=YOUR_TOKEN');
 
+enum Subject {
+  Radical = 'radical',
+  Kanji = 'kanji',
+  Vocabulary = 'vocabulary',
+}
+
 function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
-export async function download(verbose = true) {
+export async function download(subject: Subject, verbose = true) {
   const ret = [];
-  let url = 'https://api.wanikani.com/v2/subjects?types=vocabulary';
+  let url = `https://api.wanikani.com/v2/subjects?types=${subject}`;
   const opt: RequestInit = {headers: {'Wanikani-Revision': '20170710', Authorization: `Bearer ${WANIKANI_TOKEN}`}};
   while (true) {
     const fullres = await fetch(url, opt);
@@ -29,7 +35,14 @@ export async function download(verbose = true) {
 
 if (require.main === module) {
   (async function main() {
-    const ret = await download();
-    writeFileSync('all-vocab.json', JSON.stringify(ret, null, 1));
+    {
+      const rad = await download(Subject.Radical);
+      const kan = await download(Subject.Kanji);
+      writeFileSync('all-radical-kanji.json', JSON.stringify(rad.concat(kan), null, 1));
+    }
+    {
+      const ret = await download(Subject.Vocabulary);
+      writeFileSync('all-vocab.json', JSON.stringify(ret, null, 1));
+    }
   })();
 }
