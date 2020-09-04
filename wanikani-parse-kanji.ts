@@ -1,6 +1,8 @@
 import assert from 'assert';
 import {readFileSync, writeFileSync} from 'fs';
 
+import {combinations} from './comb';
+
 interface AuxiliaryMeaning {
   meaning: string;
   type: string;
@@ -116,8 +118,13 @@ const radicalSet = new Set(radicals.filter(r => !r.hidden_at).flatMap(r => radic
 /**
  * Goal: return an array that contains all the kanji in input that I know about interspersed with radicals to learn.
  */
-function findBestPath(newKanji: string, knownKanji: string, {verbose = false, limit = Infinity} = {}) {
-  let unlockedEither: Set<string> = new Set(enumerateUpstream(knownKanji));
+function findBestPath(newKanji: string, knownKanji: string, {
+  verbose = false,
+  limit = Infinity,
+  greedySearchLimit = 20,
+  maxRadicalsToLearn = 2,
+} = {}) {
+  let unlockedEither: Set<string> = new Set(enumerateAllKnown(knownKanji));
   const unlockedNotes: Map<string, string> =
       new Map(Array.from(unlockedEither, s => [s, 'Already known ' + kanjiToRadicals.has(s) ? 'kanji' : 'radical']));
 
@@ -128,13 +135,11 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
       console.log({IDX, unlocked: Array.from(unlockedEither).join(' '), locked: Array.from(lockedKanji).join(' ')});
     }
     const cannotLearnNow: string[] = [];
-    let addedSomething = false;
     for (const k of lockedKanji) {
       const rad = kanjiToRadicals.get(k);
       if (!rad) { continue; } // TypeScript pacification
       const radStrings = rad.map(radicalToString);
       if (radStrings.every(s => unlockedEither.has(s))) {
-        addedSomething = true;
         // we can learn this now
         lockedKanji.delete(k);
         // TODO maybe organize the set of kanji added this iteration further?
@@ -145,69 +150,43 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
       }
     }
     if (cannotLearnNow.length === 0) { break; }
-    // If you add kanji above that to the learned pile, and continue below, you might find kanji with 0 unknown
-    // radicals, so just loop
-    if (addedSomething) { continue; }
 
-    // find kanji with fewest unknown radicals, learn those radicals+kanji. Stop when you find two kanji with same # of
-    // unknown radicals
-    const unlockableRadicals =
-        cannotLearnNow
-            .map(k =>
-                     ({k, r: (kanjiToRadicals.get(k))?.map(radicalToString).filter(s => !unlockedEither.has(s)) || []}))
-            .sort((a, b) => a.r.length - b.r.length);
-    let unlockableIdxStop = -1;
-    for (let [j, rads] of unlockableRadicals.entries()) {
-      if (!unlockableRadicals[j + 1] || rads.r.length < unlockableRadicals[j + 1].r.length) {
-        addedSomething = true;
-        for (const r of rads.r) {
-          unlockedEither.add(r);
-          unlockedNotes.set(r, `To learn ${rads.k}: fewest unknown radicals`);
-          lockedKanji.delete(r); // probably not necessary
-        }
-        unlockedEither.add(rads.k);
-        unlockedNotes.set(rads.k, `All radicals known`);
-        lockedKanji.delete(rads.k);
-      } else {
-        unlockableIdxStop = j;
-        break;
+    // Of all the radicals we could learn, find the two (customizable) that'll enable us to learn the most kanji right
+    // away
+    const unlockableRadicals = cannotLearnNow.map(
+        k => ({k, r: (kanjiToRadicals.get(k))?.map(radicalToString).filter(s => !unlockedEither.has(s)) || []}));
+    let candidateRadicals = Array.from(new Set(unlockableRadicals.flatMap(o => o.r)));
+    const freq = hist(candidateRadicals, x => x);
+    if (candidateRadicals.length > greedySearchLimit) {
+      candidateRadicals = freq.slice(0, greedySearchLimit).map(o => o.val);
+    }
+    let best = {radicals: [] as string[][], nUnlocked: 0};
+    const it: IterableIterator<typeof candidateRadicals> = combinations(candidateRadicals, maxRadicalsToLearn);
+    for (const toLearn of it) {
+      const s = Array.from(new Set(toLearn));
+      const numDeps =
+          unlockableRadicals.map(o => o.r.reduce((count, rad) => count - (s.includes(rad) && 1 || 0), o.r.length));
+      const kanjiUnlocked = numDeps.filter(x => x === 0).length;
+      if (kanjiUnlocked > best.nUnlocked) {
+        best = {radicals: [s], nUnlocked: kanjiUnlocked};
+      } else if (kanjiUnlocked === best.nUnlocked) {
+        best.radicals.push(s);
       }
     }
-    if (addedSomething) { continue; }
-    if (unlockableIdxStop >= 0 && unlockableIdxStop < unlockableRadicals.length && lockedKanji.size > 0) {
-      // We've found kanji with equal number of unknown radicals (i.e., two kanji unknown, each with two unknown
-      // radicals). Of the kanji with the fewest unknown radicals, find the radical that's most similar to known
-      // radicals and learn that. If there's more than one such radical (i.e., two radicals equally similar to known
-      // radicals), learn the radical that is used by the most kanji in the set of unknown kanji.
-      const subset = unlockableRadicals.filter(o => o.r.length === unlockableRadicals[0].r.length);
-      const radicalSubset = subset.map(
-          o => ({...o, unknown: o.r.join('').split('').filter(c => !unlockedEither.has(c) && !IDC.has(c)).length}));
-      if (!radicalSubset[1] || radicalSubset[0].unknown < radicalSubset[1].unknown) {
-        for (const r of radicalSubset[0].r) {
-          unlockedEither.add(r);
-          unlockedNotes.set(
-              r, `To learn ${radicalSubset[0].k}: ${radicalSubset[0].unknown} unknown of ${radicalSubset[0].r.length}`);
-
-          lockedKanji.delete(r);
-        }
-        unlockedEither.add(radicalSubset[0].k);
-        unlockedNotes.set(radicalSubset[0].k, `All radicals learned`);
-
-        lockedKanji.delete(radicalSubset[0].k);
-      } else {
-        // Find the radical that unlocks the most overall
-        const whichUnlocksMost =
-            new Set(radicalSubset.filter(o => o.unknown === radicalSubset[0].unknown).flatMap(o => o.r));
-        const freq = hist(
-            Array.from(lockedKanji)
-                .flatMap(k => kanjiToRadicals.get(k)?.map(radicalToString).filter(s => whichUnlocksMost.has(s)) || []),
-            x => x);
-        const bestRadical = freq[0].val;
-        unlockedEither.add(bestRadical);
-        unlockedNotes.set(
-            bestRadical, `Unlocks ${freq[0].freq} more kanji; best out of ${radicalSubset.flatMap(o => o.r).join('')}`);
-        lockedKanji.delete(bestRadical);
+    if (best.radicals.length > 0) {
+      const freqMap = new Map(freq.map(o => [o.val, o.freq]));
+      const status = {argmin: -1};
+      argmin(best.radicals, rads => -rads.reduce((prev, curr) => prev + (freqMap.get(curr) || 0), 0), status);
+      const chosen = best.radicals[status.argmin];
+      for (const r of chosen) {
+        unlockedEither.add(r);
+        lockedKanji.delete(r);
+        unlockedNotes.set(r, `Will unlock ${best.nUnlocked} now!`);
       }
+    } else {
+      unlockedEither.add(freq[0].val);
+      lockedKanji.delete(freq[0].val);
+      unlockedNotes.set(freq[0].val, `Will _eventually_ unlock ${freq[0].freq}`);
     }
   }
   if (verbose) {
@@ -216,7 +195,39 @@ function findBestPath(newKanji: string, knownKanji: string, {verbose = false, li
   return {unlocked: unlockedEither, locked: lockedKanji, notes: unlockedNotes};
 }
 
-function enumerateUpstream(raw: string) {
+/**
+ * Given an array of `T` and a function to map `T` to a number, find the index of the `T` that yields the smallest
+ * number. If `status = {}` if provided, you will also get
+ * - the minimizing `T` element, `min`
+ * - the minimizing index, `argmin`
+ * - the number that this minimizer was mapped to.
+ */
+export function argmin<T>(arr: T[], map: (element: T) => number,
+                          status?: {min?: T, argmin?: number, minmapped?: number}): number {
+  let smallestElement: T|undefined = undefined;
+  let smallestMapped = Infinity;
+  let smallestIdx = -1;
+  for (const [i, x] of arr.entries()) {
+    const mapped = map(x)
+    if (mapped < smallestMapped) {
+      smallestElement = x;
+      smallestMapped = mapped;
+      smallestIdx = i;
+    }
+  }
+  if (status) {
+    status.min = smallestElement;
+    status.argmin = smallestIdx;
+    status.minmapped = smallestMapped;
+  }
+  return smallestIdx;
+}
+
+/**
+ * Given a string containing kanji you know, make a list of all kanji and radicals that you must known. I.e., enumerate
+ * all ancestors of the kanji you know.
+ */
+function enumerateAllKnown(raw: string) {
   let seen: Set<string> = new Set();
   let unseen = raw.split('').filter(s => kanjiToRadicals.has(s));
   for (let i = 0; i < 50 && unseen.length > 0; i++) {
@@ -231,6 +242,10 @@ function enumerateUpstream(raw: string) {
   return Array.from(seen.values()).filter(k => kanjiToRadicals.has(k) || radicalSet.has(k));
 }
 
+/**
+ * Pseudo-histogram. Given an array of `T` and a function that maps `T` to `number|string`, return the sorted list of
+ * `T`s and the number of times `T` appeared in the input.
+ */
 function hist<T>(arr: T[], mapper: (x: T) => string | number) {
   const freq: Record<string|number, {val: T, freq: number}> = {};
   for (const x of arr) {
@@ -255,5 +270,5 @@ if (module === require.main) {
   console.log(
       Array.from(res.unlocked, k => `${k} (${kanjiToRadicals.has(k) ? 'K' : 'R'}: ${res.notes.get(k)})`).join('\n'));
   console.log(Array.from(res.locked).join('!'));
-  console.log(enumerateUpstream('配子成育'))
+  console.log(enumerateAllKnown('配子成育'))
 }
