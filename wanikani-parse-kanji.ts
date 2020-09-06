@@ -2,6 +2,7 @@ import assert from 'assert';
 import {readFileSync, writeFileSync} from 'fs';
 
 import {combinations} from './comb';
+import {hasKanji} from './kana';
 
 interface AuxiliaryMeaning {
   meaning: string;
@@ -96,9 +97,14 @@ const radicalToUnicode: Record<string, string> = {
 };
 const IDC = new Set('⿰⿱⿲⿳⿴⿵⿶⿷⿸⿹⿺⿻'.split(''));
 
-const [radicals, kanjis] =
-    JSON.parse(readFileSync('all-radical-kanji.json', 'utf8'))
-        .map((o: any) => o.data.map((o: any) => ({...o.data, id: o.id}))) as [Radical[], Kanji[]];
+let radicals: Radical[];
+let kanjis: Kanji[];
+{
+  type Res = {data: {data: any, id: number}[]}[];
+  const loaded: {radicals: Res, kanjis: Res} = JSON.parse(readFileSync('all-radical-kanji.json', 'utf8'));
+  radicals = loaded.radicals.flatMap(o => o.data.map(v => ({...v.data, id: v.id})))
+  kanjis = loaded.kanjis.flatMap(o => o.data.map(v => ({...v.data, id: v.id})))
+}
 {
   const nounicode = radicals.filter(r => !r.hidden_at).filter(r => !(r.characters || radicalToUnicode[r.slug]));
   if (nounicode.length) { console.error(nounicode); }
@@ -106,17 +112,81 @@ const [radicals, kanjis] =
 }
 
 const idToRadical = new Map(radicals.map(r => [r.id, r]))
-const kanjiToRadicals =
+export const kanjiToRadicals =
     new Map(kanjis.map(k => [k.characters, k.component_subject_ids.map(n => idToRadical.get(n) as Radical)]));
+export const kanjiToRadicalStr = new Map(
+    kanjis.map(k => [k.characters, k.component_subject_ids.map(n => radicalToString(idToRadical.get(n) as Radical))]));
 { assert(Array.from(kanjiToRadicals.values()).filter(x => !x).length === 0, 'Found kanji without radicals'); }
-function radicalToString(r: Radical) { return r.characters || radicalToUnicode[r.slug]; }
+export function radicalToString(r: Radical) { return r.characters || radicalToUnicode[r.slug]; }
 /** This contains single-char strings of full kanji or Unicode pieces */
 const radicalFullSet =
     new Set(radicals.filter(r => !r.hidden_at).flatMap(r => radicalToString(r).split('').concat(radicalToString(r))));
 const radicalSet = new Set(radicals.filter(r => !r.hidden_at).flatMap(r => radicalToString(r)));
 
+function vocabToUnknownRadicals(vocab: string, unlocked: Map<string, any>, extraKnown: string[] = []) {
+  const ret: string[] = [];
+  for (const c of vocab) {
+    for (const r of kanjiToRadicalStr.get(c) || []) {
+      if (!unlocked.has(r) && !extraKnown.includes(r)) { ret.push(r); }
+    }
+  }
+  return ret;
+}
+
+function known(vocab: string, unlocked: Map<string, any>, extraKnown: string[] = []): boolean {
+  for (const c of vocab) {
+    for (const r of kanjiToRadicalStr.get(c) || []) {
+      if (!unlocked.has(r) && !extraKnown.includes(r)) { return false; }
+    }
+  }
+  return true;
+}
+
+function findBestPathVocab(vocab: string[], knownKanji: string) {
+  const locked = new Set(vocab);
+  const init = enumerateAllKnown(knownKanji);
+  for (const i of init) { locked.delete(i); }
+  const unlocked: Map<string, string> = new Map(init.map(o => [o, `Already known`]));
+
+  for (let IDX = 0; IDX < 5000 && locked.size > 0; IDX++) {
+    const radicalChoices: Map<string, number> = new Map();
+    // First, find vocab that we know all kanji or all the radicals for
+    for (const vocab of locked) {
+      const unknownRadicals = vocabToUnknownRadicals(vocab, unlocked);
+      if (unknownRadicals.length === 0) {
+        locked.delete(vocab);
+        unlocked.set(vocab, `All radicals known`);
+      } else {
+        for (const r of unknownRadicals) { radicalChoices.set(r, (radicalChoices.get(r) || 0) + 1); }
+      }
+    }
+    if (locked.size === 0) { break; }
+
+    // Now let's pick two (customizable?) radicals to learn that'll unlock the most vocab right away
+    const freq = Array.from(radicalChoices.entries()).sort((a, b) => b[1] - a[1]);
+    let {minX: bestRadicals, minY: numUnlocked} =
+        argmin(combinations(freq.slice(0, 15).map(o => o[0]), 2),
+               proposed => -boolsum(Array.from(locked, vocab => known(vocab, unlocked, proposed))));
+    numUnlocked = Math.abs(numUnlocked);
+    let note = '';
+    if (!bestRadicals || numUnlocked <= 0) {
+      bestRadicals = [freq[0][0]];
+      note = `Used in ${freq.length} vocab`;
+    } else {
+      note = `Will unlock ${numUnlocked} vocab now!`;
+    }
+    for (const r of bestRadicals) {
+      locked.delete(r);
+      unlocked.set(r, note);
+    }
+  }
+  return {unlocked, locked};
+}
+
+const boolsum = (arr: boolean[]) => arr.reduce((p, c) => p + (c && 1 || 0), 0);
+
 /**
- * Goal: return an array that contains all the kanji in input that I know about interspersed with radicals to learn.
+ * Goal: return an array that contains all the kanji in input interspersed with radicals to learn.
  */
 function findBestPath(newKanji: string, knownKanji: string, {
   verbose = false,
@@ -162,8 +232,7 @@ function findBestPath(newKanji: string, knownKanji: string, {
     }
     let best = {radicals: [] as string[][], nUnlocked: 0};
     const it: IterableIterator<typeof candidateRadicals> = combinations(candidateRadicals, maxRadicalsToLearn);
-    for (const toLearn of it) {
-      const s = Array.from(new Set(toLearn));
+    for (const s of it) {
       const numDeps =
           unlockableRadicals.map(o => o.r.reduce((count, rad) => count - (s.includes(rad) && 1 || 0), o.r.length));
       const kanjiUnlocked = numDeps.filter(x => x === 0).length;
@@ -175,8 +244,7 @@ function findBestPath(newKanji: string, knownKanji: string, {
     }
     if (best.radicals.length > 0) {
       const freqMap = new Map(freq.map(o => [o.val, o.freq]));
-      const status = {argmin: -1};
-      argmin(best.radicals, rads => -rads.reduce((prev, curr) => prev + (freqMap.get(curr) || 0), 0), status);
+      const status = argmin(best.radicals, rads => -rads.reduce((prev, curr) => prev + (freqMap.get(curr) || 0), 0));
       const chosen = best.radicals[status.argmin];
       for (const r of chosen) {
         unlockedEither.add(r);
@@ -195,32 +263,21 @@ function findBestPath(newKanji: string, knownKanji: string, {
   return {unlocked: unlockedEither, locked: lockedKanji, notes: unlockedNotes};
 }
 
-/**
- * Given an array of `T` and a function to map `T` to a number, find the index of the `T` that yields the smallest
- * number. If `status = {}` if provided, you will also get
- * - the minimizing `T` element, `min`
- * - the minimizing index, `argmin`
- * - the number that this minimizer was mapped to.
- */
-export function argmin<T>(arr: T[], map: (element: T) => number,
-                          status?: {min?: T, argmin?: number, minmapped?: number}): number {
-  let smallestElement: T|undefined = undefined;
-  let smallestMapped = Infinity;
-  let smallestIdx = -1;
-  for (const [i, x] of arr.entries()) {
-    const mapped = map(x)
-    if (mapped < smallestMapped) {
-      smallestElement = x;
-      smallestMapped = mapped;
-      smallestIdx = i;
+export function argmin<T>(arr: IterableIterator<T>|T[], map: (x: T) => number) {
+  let minX: T|undefined = undefined;
+  let minY = Infinity;
+  let idxMin = -1;
+  let i = 0;
+  for (const x of arr) {
+    const y = map(x)
+    if (y < minY) {
+      minX = x;
+      minY = y;
+      idxMin = i;
     }
+    i++;
   }
-  if (status) {
-    status.min = smallestElement;
-    status.argmin = smallestIdx;
-    status.minmapped = smallestMapped;
-  }
-  return smallestIdx;
+  return {minX: minX, argmin: idxMin, minY: minY};
 }
 
 /**
@@ -260,15 +317,36 @@ function hist<T>(arr: T[], mapper: (x: T) => string | number) {
 }
 
 if (module === require.main) {
-  const fs = require('fs');
-  console.log(process.argv)
-  const unknown = process.argv[2] ? fs.readFileSync(process.argv[2], 'utf8')
-                                  : '配る・賦る購入照明深い変わっている・変わってる順路最初白子成育過程示す明';
-  const known = process.argv[3] || '日月';
+  const known = '一日十目田中口人二三木月';
 
-  const res = findBestPath(unknown, known, {limit: 1000, verbose: false});
-  console.log(
-      Array.from(res.unlocked, k => `${k} (${kanjiToRadicals.has(k) ? 'K' : 'R'}: ${res.notes.get(k)})`).join('\n'));
-  console.log(Array.from(res.locked).join('!'));
-  console.log(enumerateAllKnown('配子成育'))
+  if (1) {
+    const vocab = readFileSync('table.txt', 'utf8').split('\n').map(s => s.slice(0, s.indexOf(' ')));
+
+    const vset = new Set(vocab);
+    const res = findBestPathVocab(vocab, known);
+    console.log(Array
+                    .from(res.unlocked, ([v, note]) => `${v}: ${note} ${
+                                            vset.has(v) ? v.split('')
+                                                              .filter(s => kanjiToRadicals.has(s))
+                                                              .flatMap(s => kanjiToRadicals.get(s) || [])
+                                                              .map(radicalToString)
+                                                              .join(';')
+                                                        : ''}`)
+                    .join('\n'));
+    console.log(Array.from(res.locked).join('!'));
+  }
+  if (1) {
+    const unknown = readFileSync('table.txt', 'utf8');
+    const res = findBestPath(unknown, known, {limit: 1000, verbose: false});
+    console.log(
+        Array.from(res.unlocked, k => `${k} (${kanjiToRadicals.has(k) ? 'K' : 'R'}: ${res.notes.get(k)})`).join('\n'));
+    console.log(Array.from(res.locked).join('!'));
+  }
+  if (1) {
+    const unknown = Array.from(new Set(readFileSync('table.txt', 'utf8').split('').filter(s => hasKanji(s))));
+    const res = findBestPathVocab(unknown, known);
+    console.log(Array.from(res.unlocked, ([v, note]) => `${v}: ${note}`).join('\n'));
+    console.log(Array.from(res.locked).join('!'));
+  }
+  console.log(enumerateAllKnown('配子成育'));
 }

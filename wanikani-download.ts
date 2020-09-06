@@ -36,9 +36,9 @@ export async function download(subject: Subject, verbose = true) {
 if (require.main === module) {
   (async function main() {
     {
-      const rad = await download(Subject.Radical);
-      const kan = await download(Subject.Kanji);
-      writeFileSync('all-radical-kanji.json', JSON.stringify(rad.concat(kan), null, 1));
+      const radicals = await download(Subject.Radical);
+      const kanjis = await download(Subject.Kanji);
+      writeFileSync('all-radical-kanji.json', JSON.stringify({radicals, kanjis}, null, 1));
     }
     {
       const ret = await download(Subject.Vocabulary);
