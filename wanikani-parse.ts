@@ -1,4 +1,5 @@
-import {readFileSync, writeFileSync} from 'fs';
+import {existsSync, readFileSync, writeFileSync} from 'fs';
+
 import {Simplified} from './interfaces';
 import {kata2hira} from './kana';
 
@@ -32,7 +33,12 @@ function upsert2(map: BigMap, key: string, subkey: string, val: string) {
 type BigMap = Map<string, Map<string, string[]>>; // kanji -> kana -> gloss
 var kanjiToKanaToSenses: BigMap = new Map();
 {
-  var dict: Simplified['words'] = JSON.parse(readFileSync('jmdict-eng-3.0.1.json', 'utf8')).words;
+  const DICTFILE = 'jmdict-eng-3.1.0.json';
+  if (!existsSync(DICTFILE)) {
+    console.error(`Download ${DICTFILE} from https://github.com/scriptin/jmdict-simplified/releases`);
+    process.exit(1);
+  }
+  var dict: Simplified['words'] = JSON.parse(readFileSync(DICTFILE, 'utf8')).words;
   for (const entry of dict) {
     const kanji = entry.kanji.filter(o => !o.tags.includes('iK'))
                       .map(o => [o.text, o.common] as [string, boolean]); // omit irregular kanji
