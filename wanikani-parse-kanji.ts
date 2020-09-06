@@ -123,16 +123,6 @@ const radicalFullSet =
     new Set(radicals.filter(r => !r.hidden_at).flatMap(r => radicalToString(r).split('').concat(radicalToString(r))));
 const radicalSet = new Set(radicals.filter(r => !r.hidden_at).flatMap(r => radicalToString(r)));
 
-function vocabToUnknownRadicals(vocab: string, unlocked: Map<string, any>, extraKnown: string[] = []) {
-  const ret: string[] = [];
-  for (const c of vocab) {
-    for (const r of kanjiToRadicalStr.get(c) || []) {
-      if (!unlocked.has(r) && !extraKnown.includes(r)) { ret.push(r); }
-    }
-  }
-  return ret;
-}
-
 function findBestPathVocab(vocab: string[], knownKanji: string, {
   limit = Infinity,
   greedySearchLimit = 20,
@@ -143,11 +133,21 @@ function findBestPathVocab(vocab: string[], knownKanji: string, {
   for (const i of init) { locked.delete(i); }
   const unlocked: Map<string, string> = new Map(init.map(o => [o, `Already known`]));
 
+  function vocabToUnknownRadicals(vocab: string) {
+    const ret: string[] = [];
+    for (const c of vocab) {
+      for (const r of kanjiToRadicalStr.get(c) || []) {
+        if (!unlocked.has(r)) { ret.push(r); }
+      }
+    }
+    return ret;
+  }
+
   for (let IDX = 0; IDX < limit && locked.size > 0; IDX++) {
     const radicalChoices: Map<string, number> = new Map();
     // First, find vocab that we know all kanji or all the radicals for
     for (const vocab of locked) {
-      const unknownRadicals = vocabToUnknownRadicals(vocab, unlocked);
+      const unknownRadicals = vocabToUnknownRadicals(vocab);
       if (unknownRadicals.length === 0) {
         locked.delete(vocab);
         unlocked.set(vocab, `All radicals known`);
@@ -157,7 +157,7 @@ function findBestPathVocab(vocab: string[], knownKanji: string, {
     }
     if (locked.size === 0) { break; }
 
-    // Now let's pick two (customizable?) radicals to learn that'll unlock the most vocab right away
+    // Now let's pick two (customizable) radicals to learn that'll unlock the most vocab right away
     const freq = Array.from(radicalChoices.entries()).sort((a, b) => b[1] - a[1]);
     const memo = Array.from(
         locked, vocab => vocab.split('').flatMap(c => (kanjiToRadicalStr.get(c) || []).filter(c => !unlocked.has(c))));
@@ -166,7 +166,8 @@ function findBestPathVocab(vocab: string[], knownKanji: string, {
                proposed => -memo.filter(rads => rads.every(rad => proposed.includes(rad))).length);
     numUnlocked = Math.abs(numUnlocked);
     let note = '';
-    if (!bestRadicals || numUnlocked <= 0) {
+    if (!bestRadicals || numUnlocked === 0) {
+      // We couldn't find any radicals that will unlock vocab right away. Go with the most useful radical.
       bestRadicals = [freq[0][0]];
       note = `Used in ${freq.length} vocab`;
     } else {
@@ -181,88 +182,18 @@ function findBestPathVocab(vocab: string[], knownKanji: string, {
 }
 
 /**
- * Goal: return an array that contains all the kanji in input interspersed with radicals to learn.
+ * Given a list of `T` and a function to map `T` ("x") to a number ("y"), find:
+ * - the minimizing `T` element, `minX`
+ * - the number that this minimizer was mapped to, `minY`
+ * - the minimizing index, `argmin`
  */
-function findBestPath(newKanji: string, knownKanji: string, {
-  verbose = false,
-  limit = Infinity,
-  greedySearchLimit = 20,
-  maxRadicalsToLearn = 2,
-} = {}) {
-  let unlockedEither: Set<string> = new Set(enumerateAllKnown(knownKanji));
-  const unlockedNotes: Map<string, string> =
-      new Map(Array.from(unlockedEither, s => [s, 'Already known ' + kanjiToRadicals.has(s) ? 'kanji' : 'radical']));
-
-  let lockedKanji = new Set(newKanji.split('').filter(k => kanjiToRadicals.has(k) && !unlockedEither.has(k)));
-
-  for (let IDX = 0; IDX < limit && lockedKanji.size > 0; IDX++) {
-    if (verbose) {
-      console.log({IDX, unlocked: Array.from(unlockedEither).join(' '), locked: Array.from(lockedKanji).join(' ')});
-    }
-    const cannotLearnNow: string[] = [];
-    for (const k of lockedKanji) {
-      const rad = kanjiToRadicals.get(k);
-      if (!rad) { continue; } // TypeScript pacification
-      const radStrings = rad.map(radicalToString);
-      if (radStrings.every(s => unlockedEither.has(s))) {
-        // we can learn this now
-        lockedKanji.delete(k);
-        // TODO maybe organize the set of kanji added this iteration further?
-        unlockedEither.add(k);
-        unlockedNotes.set(k, 'All radicals known');
-      } else {
-        cannotLearnNow.push(k);
-      }
-    }
-    if (cannotLearnNow.length === 0) { break; }
-
-    // Of all the radicals we could learn, find the two (customizable) that'll enable us to learn the most kanji right
-    // away
-    const unlockableRadicals = cannotLearnNow.map(
-        k => ({k, r: (kanjiToRadicals.get(k))?.map(radicalToString).filter(s => !unlockedEither.has(s)) || []}));
-    let candidateRadicals = Array.from(new Set(unlockableRadicals.flatMap(o => o.r)));
-    const freq = hist(candidateRadicals, x => x);
-    if (candidateRadicals.length > greedySearchLimit) {
-      candidateRadicals = freq.slice(0, greedySearchLimit).map(o => o.val);
-    }
-    let best = {radicals: [] as string[][], nUnlocked: 0};
-    const it: IterableIterator<typeof candidateRadicals> = combinations(candidateRadicals, maxRadicalsToLearn);
-    for (const s of it) {
-      const kanjiUnlocked = unlockableRadicals.filter(o => o.r.every(rad => s.includes(rad))).length;
-      if (kanjiUnlocked > best.nUnlocked) {
-        best = {radicals: [s], nUnlocked: kanjiUnlocked};
-      } else if (kanjiUnlocked === best.nUnlocked) {
-        best.radicals.push(s);
-      }
-    }
-    if (best.radicals.length > 0) {
-      const freqMap = new Map(freq.map(o => [o.val, o.freq]));
-      const status = argmin(best.radicals, rads => -rads.reduce((prev, curr) => prev + (freqMap.get(curr) || 0), 0));
-      const chosen = best.radicals[status.argmin];
-      for (const r of chosen) {
-        unlockedEither.add(r);
-        lockedKanji.delete(r);
-        unlockedNotes.set(r, `Will unlock ${best.nUnlocked} now!`);
-      }
-    } else {
-      unlockedEither.add(freq[0].val);
-      lockedKanji.delete(freq[0].val);
-      unlockedNotes.set(freq[0].val, `Will _eventually_ unlock ${freq[0].freq}`);
-    }
-  }
-  if (verbose) {
-    console.log('final', {unlocked: Array.from(unlockedEither).join(' '), locked: Array.from(lockedKanji).join(' ')});
-  }
-  return {unlocked: unlockedEither, locked: lockedKanji, notes: unlockedNotes};
-}
-
 export function argmin<T>(arr: IterableIterator<T>|T[], map: (x: T) => number) {
   let minX: T|undefined = undefined;
   let minY = Infinity;
   let idxMin = -1;
   let i = 0;
   for (const x of arr) {
-    const y = map(x)
+    const y = map(x);
     if (y < minY) {
       minX = x;
       minY = y;
@@ -270,7 +201,7 @@ export function argmin<T>(arr: IterableIterator<T>|T[], map: (x: T) => number) {
     }
     i++;
   }
-  return {minX: minX, argmin: idxMin, minY: minY};
+  return {minX, argmin: idxMin, minY};
 }
 
 /**
@@ -312,11 +243,12 @@ function hist<T>(arr: T[], mapper: (x: T) => string | number) {
 if (module === require.main) {
   const known = '一日十目田中口人二三木月';
 
-  if (1) {
+  {
     const vocab = readFileSync('table.txt', 'utf8').split('\n').map(s => s.slice(0, s.indexOf(' ')));
 
     const vset = new Set(vocab);
     const res = findBestPathVocab(vocab, known);
+    console.log('## Path through radicals for vocabulary')
     console.log(Array
                     .from(res.unlocked, ([v, note]) => `${v}: ${note} ${
                                             vset.has(v) ? v.split('')
@@ -326,20 +258,15 @@ if (module === require.main) {
                                                               .join(';')
                                                         : ''}`)
                     .join('\n'));
+    console.log(`### Didn't reach these in time :(`);
     console.log(Array.from(res.locked).join('!'));
   }
-  if (1) {
-    const unknown = readFileSync('table.txt', 'utf8');
-    const res = findBestPath(unknown, known, {limit: 1000, verbose: false});
-    console.log(
-        Array.from(res.unlocked, k => `${k} (${kanjiToRadicals.has(k) ? 'K' : 'R'}: ${res.notes.get(k)})`).join('\n'));
-    console.log(Array.from(res.locked).join('!'));
-  }
-  if (1) {
+  {
     const unknown = Array.from(new Set(readFileSync('table.txt', 'utf8').split('').filter(s => hasKanji(s))));
     const res = findBestPathVocab(unknown, known);
-    console.log(Array.from(res.unlocked, ([v, note]) => `${v}: ${note}`).join('\n'));
+    console.log('## Kanji-only: path through radicals and individual kanji (not vocabulary)');
+    console.log(Array.from(res.unlocked, ([v, note]) => `- ${v}: ${note}`).join('\n'));
+    console.log(`### Didn't reach these in time :(`);
     console.log(Array.from(res.locked).join('!'));
   }
-  console.log(enumerateAllKnown('配子成育'));
 }
