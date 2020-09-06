@@ -133,22 +133,17 @@ function vocabToUnknownRadicals(vocab: string, unlocked: Map<string, any>, extra
   return ret;
 }
 
-function known(vocab: string, unlocked: Map<string, any>, extraKnown: string[] = []): boolean {
-  for (const c of vocab) {
-    for (const r of kanjiToRadicalStr.get(c) || []) {
-      if (!unlocked.has(r) && !extraKnown.includes(r)) { return false; }
-    }
-  }
-  return true;
-}
-
-function findBestPathVocab(vocab: string[], knownKanji: string) {
+function findBestPathVocab(vocab: string[], knownKanji: string, {
+  limit = Infinity,
+  greedySearchLimit = 20,
+  maxRadicalsToLearn = 2,
+} = {}) {
   const locked = new Set(vocab);
   const init = enumerateAllKnown(knownKanji);
   for (const i of init) { locked.delete(i); }
   const unlocked: Map<string, string> = new Map(init.map(o => [o, `Already known`]));
 
-  for (let IDX = 0; IDX < 5000 && locked.size > 0; IDX++) {
+  for (let IDX = 0; IDX < limit && locked.size > 0; IDX++) {
     const radicalChoices: Map<string, number> = new Map();
     // First, find vocab that we know all kanji or all the radicals for
     for (const vocab of locked) {
@@ -164,9 +159,11 @@ function findBestPathVocab(vocab: string[], knownKanji: string) {
 
     // Now let's pick two (customizable?) radicals to learn that'll unlock the most vocab right away
     const freq = Array.from(radicalChoices.entries()).sort((a, b) => b[1] - a[1]);
+    const memo = Array.from(
+        locked, vocab => vocab.split('').flatMap(c => (kanjiToRadicalStr.get(c) || []).filter(c => !unlocked.has(c))));
     let {minX: bestRadicals, minY: numUnlocked} =
-        argmin(combinations(freq.slice(0, 15).map(o => o[0]), 2),
-               proposed => -boolsum(Array.from(locked, vocab => known(vocab, unlocked, proposed))));
+        argmin(combinations(freq.slice(0, greedySearchLimit).map(o => o[0]), maxRadicalsToLearn),
+               proposed => -memo.filter(rads => rads.every(rad => proposed.includes(rad))).length);
     numUnlocked = Math.abs(numUnlocked);
     let note = '';
     if (!bestRadicals || numUnlocked <= 0) {
@@ -182,8 +179,6 @@ function findBestPathVocab(vocab: string[], knownKanji: string) {
   }
   return {unlocked, locked};
 }
-
-const boolsum = (arr: boolean[]) => arr.reduce((p, c) => p + (c && 1 || 0), 0);
 
 /**
  * Goal: return an array that contains all the kanji in input interspersed with radicals to learn.
@@ -233,9 +228,7 @@ function findBestPath(newKanji: string, knownKanji: string, {
     let best = {radicals: [] as string[][], nUnlocked: 0};
     const it: IterableIterator<typeof candidateRadicals> = combinations(candidateRadicals, maxRadicalsToLearn);
     for (const s of it) {
-      const numDeps =
-          unlockableRadicals.map(o => o.r.reduce((count, rad) => count - (s.includes(rad) && 1 || 0), o.r.length));
-      const kanjiUnlocked = numDeps.filter(x => x === 0).length;
+      const kanjiUnlocked = unlockableRadicals.filter(o => o.r.every(rad => s.includes(rad))).length;
       if (kanjiUnlocked > best.nUnlocked) {
         best = {radicals: [s], nUnlocked: kanjiUnlocked};
       } else if (kanjiUnlocked === best.nUnlocked) {
