@@ -56,6 +56,6 @@ As you see, the format is
 ```
 <kanji> <kana, possibly multiple> (§<Wanikani lesson number (skips because we're only looking at vocabulary)> <JMdict definition> #<JMdict entry ID> <indicator if this word is common>)
 ```
-The "JMdict entry ID" may need some explication. All JMdict entries have an ID associated with them, even though most dictionaries don't expose it. You can look up an ID using [JMdict advanced search](http://www.edrdg.org/jmdictdb/cgi-bin/srchform.py?svc=jmdict&sid=) by typing it into the "Search by Id or Seq number" section. Doing so can lead you to the JMdict entry for [#1319210, <ruby>一<rt>いち</rt></ruby>](http://www.edrdg.org/jmdictdb/cgi-bin/entr.py?svc=jmdict&sid=&q=1319210).
+The "JMdict entry ID" may need some explication. All JMdict entries have an ID associated with them, even though most dictionaries don't expose it. You can look up an ID using [JMdict advanced search](http://www.edrdg.org/jmdictdb/cgi-bin/srchform.py?svc=jmdict&sid=) by typing it into the "Search by Id or Seq number" section. Doing so can lead you to the JMdict entry for [#1319210, <ruby>七<rt>なな</rt></ruby>](http://www.edrdg.org/jmdictdb/cgi-bin/entr.py?svc=jmdict&sid=&q=1319210).
 
 ## [Go pay Wanikani money](https://www.wanikani.com)
