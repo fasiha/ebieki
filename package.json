@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "download": "ts-node wanikani-vocab.ts",
-    "table": "ts-node wanikani-parse.ts"
+    "download": "ts-node wanikani-download.ts",
+    "table": "ts-node wanikani-parse.ts",
+    "path": "ts-node wanikani-parse-kanji.ts > path.md"
   },
   "keywords": [],
   "author": "",

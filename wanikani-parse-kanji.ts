@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {readFileSync, writeFileSync} from 'fs';
+import {readFileSync} from 'fs';
 
 import {combinations} from './comb';
 import {hasKanji} from './kana';
@@ -118,12 +118,9 @@ export const kanjiToRadicalStr = new Map(
     kanjis.map(k => [k.characters, k.component_subject_ids.map(n => radicalToString(idToRadical.get(n) as Radical))]));
 { assert(Array.from(kanjiToRadicals.values()).filter(x => !x).length === 0, 'Found kanji without radicals'); }
 export function radicalToString(r: Radical) { return r.characters || radicalToUnicode[r.slug]; }
-/** This contains single-char strings of full kanji or Unicode pieces */
-const radicalFullSet =
-    new Set(radicals.filter(r => !r.hidden_at).flatMap(r => radicalToString(r).split('').concat(radicalToString(r))));
 const radicalSet = new Set(radicals.filter(r => !r.hidden_at).flatMap(r => radicalToString(r)));
 
-function findBestPathVocab(vocab: string[], knownKanji: string, {
+export function findBestPathVocab(vocab: string[], knownKanji: string, {
   limit = Infinity,
   greedySearchLimit = 20,
   maxRadicalsToLearn = 2,
@@ -221,23 +218,6 @@ function enumerateAllKnown(raw: string) {
     unseen = up;
   }
   return Array.from(seen.values()).filter(k => kanjiToRadicals.has(k) || radicalSet.has(k));
-}
-
-/**
- * Pseudo-histogram. Given an array of `T` and a function that maps `T` to `number|string`, return the sorted list of
- * `T`s and the number of times `T` appeared in the input.
- */
-function hist<T>(arr: T[], mapper: (x: T) => string | number) {
-  const freq: Record<string|number, {val: T, freq: number}> = {};
-  for (const x of arr) {
-    const y = mapper(x);
-    if (freq[y]) {
-      freq[y].freq++;
-    } else {
-      freq[y] = {val: x, freq: 1};
-    }
-  }
-  return Object.values(freq).sort((a, b) => b.freq - a.freq);
 }
 
 if (module === require.main) {
