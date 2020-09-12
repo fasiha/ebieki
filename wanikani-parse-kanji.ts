@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {readFileSync} from 'fs';
+import {readFileSync, writeFileSync} from 'fs';
 
 import {combinations} from './comb';
 import {hasKanji} from './kana';
@@ -99,9 +99,12 @@ const IDC = new Set('⿰⿱⿲⿳⿴⿵⿶⿷⿸⿹⿺⿻'.split(''));
 
 let radicals: Radical[];
 let kanjis: Kanji[];
+let data_updated_at: string;
 {
-  type Res = {data: {data: any, id: number}[]}[];
+  type Res = {data_updated_at: string, data: {data: any, id: number}[]}[];
   const loaded: {radicals: Res, kanjis: Res} = JSON.parse(readFileSync('all-radical-kanji.json', 'utf8'));
+  data_updated_at =
+      loaded.kanjis.map(o => o.data_updated_at).concat(loaded.radicals.map(o => o.data_updated_at)).sort()[0];
   radicals = loaded.radicals.flatMap(o => o.data.map(v => ({...v.data, id: v.id})))
   kanjis = loaded.kanjis.flatMap(o => o.data.map(v => ({...v.data, id: v.id})))
 }
@@ -221,6 +224,17 @@ function enumerateAllKnown(raw: string) {
 }
 
 if (module === require.main) {
+  {
+    const metadata = {
+      source: 'Dependency graph from Wanikani https://www.wanikani.com via Ebieki https://github.com/fasiha/ebieki',
+      data_updated_at,
+    };
+    let towrite: Record<string, string[]|Record<string, string>> = {
+      metadata,
+      ...Object.fromEntries(Array.from(kanjiToRadicalStr.entries(), ([k, v]) => [k, v]))
+    };
+    writeFileSync('wanikani-kanji-graph.json', JSON.stringify(towrite));
+  }
   const known = '一日十目田中口人二三木月';
 
   {
