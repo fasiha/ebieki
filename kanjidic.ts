@@ -1,4 +1,4 @@
-import {existsSync, readFileSync} from 'fs'
+import {existsSync, readFileSync, writeFileSync} from 'fs'
 import {ungzip} from 'node-gzip';
 import {parseStringPromise} from 'xml2js';
 
@@ -57,13 +57,27 @@ export function normalizeCharacter(c: Character) {
 }
 
 export function summarizeCharacter(c: Character) {
-  const {literal, readings, meanings} = normalizeCharacter(c);
-  return `${literal} ${meanings.join('；')} - ${readings.join(' ')}`;
+  const {literal, readings, meanings, nanori} = normalizeCharacter(c);
+  return `${literal} ${meanings.join('；')} - ${readings.join(' ')}` +
+         (nanori.length ? ` (names: ${nanori.join(' ')})` : '');
+}
+
+function normalizeHeader(h: Header): {[k in keyof Header]: string} {
+  return {
+    file_version: h.file_version[0],
+    database_version: h.database_version[0],
+    date_of_creation: h.date_of_creation[0]
+  };
 }
 
 if (require.main === module) {
   (async function main() {
     const dic = await setup();
     console.log(dic.character.slice(0, 10).map(summarizeCharacter).join('\n'));
+
+    writeFileSync('kanjidic.json', JSON.stringify({
+      header: normalizeHeader(dic.header[0]),
+      kanjidic2: Object.fromEntries(dic.character.map(c => [c.literal, normalizeCharacter(c)]))
+    }));
   })();
 }
