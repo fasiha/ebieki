@@ -48,3 +48,25 @@ export interface Simplified {
   tags: {[k: string]: string};
   words: Word[];
 }
+
+// My custom WaniKani data shape
+export interface Wanikani {
+  kanji: string;
+  kanas: string[];
+  level: number;
+  lesson_position: number;
+  gloss: string;
+}
+// Ebi-Eki data shapes
+export type PublicGloss = Word|{gloss: string};
+export type WithGloss = {
+  card: Wanikani,
+  glossObj: PublicGloss
+};
+export interface WithExtra extends WithGloss {
+  common?: boolean;
+  glossStr: string;
+}
+export interface WithDistance extends WithExtra {
+  closest: {kanji: string, distance: number}[]
+}

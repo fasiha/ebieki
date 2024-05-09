@@ -2,10 +2,11 @@
   "name": "ebieki",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "types": "./interfaces.d.ts",
   "scripts": {
     "download": "ts-node wanikani-download.ts",
     "table": "ts-node wanikani-parse.ts",
+    "distances": "python distances.py",
     "path": "ts-node wanikani-parse-kanji.ts > path.md"
   },
   "keywords": [],
@@ -17,12 +18,11 @@
     "@types/node-gzip": "^1.1.0",
     "@types/xml2js": "^0.4.5",
     "ts-node": "^8.10.2",
-    "typescript": "^3.9.7"
-  },
-  "dependencies": {
+    "typescript": "^3.9.7",
     "dotenv": "^8.2.0",
     "node-fetch": "^2.6.0",
     "node-gzip": "^1.1.2",
     "xml2js": "^0.4.23"
-  }
+  },
+  "dependencies": {}
 }
