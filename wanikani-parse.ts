@@ -130,6 +130,7 @@ const entryToGlossParts = (entry: Word, kanji: string, kana: string) => {
   const glossStr = entry.sense
                        .filter(sense => (sense.appliesToKanji[0] === '*' || sense.appliesToKanji.includes(kanji)) &&
                                         (sense.appliesToKana[0] === '*' || sense.appliesToKana.includes(kana)))
+                       .filter(sense => ['vulg', 'X', 'arch', 'derog', "obs"].every(bad => !sense.misc.includes(bad)))
                        .map(sense => sense.gloss.map(g => g.text).join(', '))
                        .join('; ');
   const common = entryToCommon(entry, kanji, kana)

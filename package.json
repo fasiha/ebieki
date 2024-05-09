@@ -2,7 +2,8 @@
   "name": "ebieki",
   "version": "1.0.0",
   "description": "",
-  "types": "./interfaces.d.ts",
+  "types": "interfaces.d.ts",
+  "main": "table.json",
   "scripts": {
     "download": "ts-node wanikani-download.ts",
     "table": "ts-node wanikani-parse.ts",
