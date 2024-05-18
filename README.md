@@ -37,7 +37,7 @@ TypeScript types in [`interfaces.d.ts`](./interfaces.d.ts) can be used to descri
 ## Dev
 If you want to run this code repository to generate the results yourself—
 
-1. Get a Wanikani v2 API key.
+1. Get a Wanikani v2 [API key](https://docs.api.wanikani.com/20170710/).
 2. Install [Git](https://git-scm.com) and [Node.js](https://nodejs.org).
 3. Run in your terminal:
 ```console
