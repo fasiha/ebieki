@@ -32,6 +32,7 @@ TypeScript types in [`interfaces.d.ts`](./interfaces.d.ts) can be used to descri
   - `glossStr`, a plain string of the glosses that apply to this kanji and kanas
   - `common`, a boolean whether JMDict thinks this is a common word
 - `closest`, a list of kanji-number pairs. The numbers are between -1 and 1 and represent cosine similarities. The closer to 1, the more similar each element's gloss is to this WaniKani vocab's gloss.
+- `furigana`, a list of <ruby>ルビ<rt>Ruby</rt></ruby> tags and strings, letting you construct things like <ruby>食<rt>た</rt></ruby>べ<ruby>物<rt>もの</rt></ruby>
 
 ## Dev
 If you want to run this code repository to generate the results yourself—
@@ -45,7 +46,11 @@ cd ebieki
 npm i
 ```
 4. Prepare a Python environment with `sentence_transformers` (see below for a suggestion)
-5. Download and uncompress a recent English release from [JMdict-Simplified](https://github.com/scriptin/jmdict-simplified/releases/latest), i.e., ``jmdict-eng-3.5.0.json`. Put this file in the `ebieki` directory you just created (via `git clone`).
+5. Download and uncompress the following, putting each in the `ebieki` directory that `git` just created:
+   - a recent *English* release from [JMdict-Simplified](https://github.com/scriptin/jmdict-simplified/releases/latest), i.e., ``jmdict-eng-3.5.0.js,on` (note the `eng` for English).
+   - Also get two recent files from the [JmdictFurigana](https://github.com/Doublevil/JmdictFurigana/releases) project:
+     - `JmdictFurigana.json` and
+     - `JmnedictFurigana.json`. Put these in the `ebieki` directory too.
 6. Create a `.env` file in the `ebieki` directory and put your Wanikani v2 API token in the following format:
 ```
 WANIKANI_TOKEN=YOUR_TOKEN_GOES_HERE

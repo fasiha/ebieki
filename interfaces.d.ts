@@ -58,15 +58,25 @@ export interface Wanikani {
   gloss: string;
 }
 // Ebi-Eki data shapes
+export interface Ruby {
+  rt: string;
+  ruby: string;
+}
+export type Furigana = Ruby|string;
 export type PublicGloss = Word|{gloss: string};
 export type WithGloss = {
-  card: Wanikani,
-  glossObj: PublicGloss
+  card: Wanikani; glossObj: PublicGloss; furigana: Furigana[];
 };
 export interface WithExtra extends WithGloss {
   common?: boolean;
   glossStr: string;
 }
 export interface WithDistance extends WithExtra {
-  closest: {kanji: string, distance: number}[]
+  closest: {kanji: string; distance: number}[];
+}
+// wanikani-kanji-graph.json type
+export interface DependencyGraph {
+  metadata: Record<string, unknown>;
+  kanjiToRadicals: Record<string, string[]>;
+  radicalToKanjis: Record<string, string[]>;
 }

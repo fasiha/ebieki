@@ -1,14 +1,13 @@
 import assert from 'assert';
 import {existsSync, readdirSync, readFileSync, writeFileSync} from 'fs';
 
-import type {Simplified, Word, Wanikani, PublicGloss, WithGloss, WithExtra} from './interfaces';
+import type {Simplified, Word, Wanikani, PublicGloss, WithGloss, WithExtra, Furigana} from './interfaces';
 import {kata2hira} from './kana';
 
 // helpers
-type BigMap = Map<string, Map<string, string[]>>; // kanji -> kana -> JMDict ID
+type BigMapT<T> = Map<string, Map<string, T[]>>;
+type BigMap = BigMapT<string>; // kanji -> kana -> JMDict ID
 const isCustomGloss = (x: PublicGloss): x is {gloss: string} => 'gloss' in x
-// const fs = require('fs');
-// const path = require('path');
 
 function findJmdict() {
   const files = readdirSync(__dirname);
@@ -31,8 +30,106 @@ wanikani.sort((a, b) => (a.level < b.level)                     ? -1
                         : a.lesson_position < b.lesson_position ? -1
                                                                 : 1);
 
-// Load JMDict data
-function upsert2(map: BigMap, key: string, subkey: string, val: string) {
+// Load JMdict Furigana data
+interface JmdictFurigana {
+  text: string
+  reading: string
+  furigana: Furigana[]
+}
+// trim because of byte order mark <ugh>
+const jmdictFuriganas: JmdictFurigana[] = JSON.parse(readFileSync('JmdictFurigana.json', 'utf8').trim());
+const nameFuriganas: JmdictFurigana[] = JSON.parse(readFileSync('JmnedictFurigana.json', 'utf8').trim());
+const extraFurigana: JmdictFurigana[] =
+    [
+      {text: "１０００", reading: "いっせん", furigana: [{ruby: "１０００", rt: "いっせん"}]},
+      {text: "５０", reading: "ごじゅう", furigana: [{ruby: "５０", rt: "ごじゅう"}]},
+      {text: "１０００円", reading: "せんえん", furigana: [{ruby: "１０００", rt: "せん"}, {ruby: "円", rt: "えん"}]},
+      {text: "１０月", reading: "じゅうがつ", furigana: [{ruby: "１０", rt: "じゅう"}, {ruby: "月", rt: "がつ"}]},
+      {text: "２日", reading: "ふつか", furigana: [{ruby: "２", rt: "ふつ"}, {ruby: "日", rt: "か"}]},
+      {text: "１０日", reading: "とおか", furigana: [{ruby: "１０", rt: "とお"}, {ruby: "日", rt: "か"}]},
+      {text: "１０万", reading: "じゅうまん", furigana: [{ruby: "１０", rt: "じゅう"}, {ruby: "万", rt: "まん"}]},
+      {
+        text: "２０１１年",
+        reading: "にせんじゅういちねん",
+        furigana: [{ruby: "２０１１", rt: "にせんじゅういち"}, {ruby: "年", rt: "ねん"}]
+      },
+      {text: "１００万", reading: "ひゃくまん", furigana: [{ruby: "１００", rt: "ひゃく"}, {ruby: "万", rt: "まん"}]},
+      {text: "４００", reading: "よんひゃく", furigana: [{ruby: "４００", rt: "よんひゃく"}]},
+      {text: "５００", reading: "ごひゃく", furigana: [{ruby: "５００", rt: "ごひゃく"}]},
+      {text: "２００", reading: "にひゃく", furigana: [{ruby: "２００", rt: "にひゃく"}]},
+      {text: "２０日", reading: "はつか", furigana: [{ruby: "２０", rt: "はつ"}, {ruby: "日", rt: "か"}]},
+      {text: "４０００", reading: "よんせん", furigana: [{ruby: "４０００", rt: "よんせん"}]},
+      {text: "４０", reading: "よんじゅう", furigana: [{ruby: "４０", rt: "よんじゅう"}]},
+      {text: "３００", reading: "さんびゃく", furigana: [{ruby: "３００", rt: "さんびゃく"}]},
+      {
+        text: "二時半",
+        reading: "にじはん",
+        furigana: [{ruby: "二", rt: "に"}, {ruby: "時", rt: "じ"}, {ruby: "半", rt: "はん"}]
+      },
+      {
+        text: "第二章",
+        reading: "だいにしょう",
+        furigana: [{ruby: "第", rt: "だい"}, {ruby: "二", rt: "に"}, {ruby: "章", rt: "しょう"}]
+      },
+      {text: "詩歌", reading: "しいか", furigana: [{ruby: "詩", rt: "しい"}, {ruby: "歌", rt: "か"}]},
+      {
+        text: "同期中",
+        reading: "どうきちゅう",
+        furigana: [{ruby: "同", rt: "どう"}, {ruby: "期", rt: "き"}, {ruby: "中", rt: "ちゅう"}]
+      },
+      {text: "可愛い", reading: "かわいい", furigana: [{ruby: "可", rt: "か"}, {ruby: "愛", rt: "わい"}, "い"]},
+      {text: "何枚", reading: "なんまい", furigana: [{ruby: "何", rt: "なん"}, {ruby: "枚", rt: "まい"}]},
+      {
+        text: "大きい順",
+        reading: "おおきいじゅん",
+        furigana: [{ruby: "大", rt: "おお"}, "きい", {ruby: "順", rt: "じゅん"}]
+      },
+      {
+        text: "小さい順",
+        reading: "ちいさいじゅん",
+        furigana: [{ruby: "小", rt: "ちい"}, "さい", {ruby: "順", rt: "じゅん"}]
+      },
+      {text: "〜務省", reading: "むしょう", furigana: ["〜", {ruby: "務", rt: "む"}, {ruby: "省", rt: "しょう"}]},
+      {
+        text: "第一段",
+        reading: "だいいちだん",
+        furigana: [{ruby: "第", rt: "だい"}, {ruby: "一", rt: "いち"}, {ruby: "段", rt: "だん"}]
+      },
+      {
+        text: "腹が減った",
+        reading: "はらがへった",
+        furigana: [{ruby: "腹", rt: "はら"}, "が", {ruby: "減", rt: "へ"}, "った"]
+      },
+      {
+        text: "募集中",
+        reading: "ぼしゅうちゅう",
+        furigana: [{ruby: "募", rt: "ぼ"}, {ruby: "集", rt: "しゅう"}, {ruby: "中", rt: "ちゅう"}]
+      },
+      {
+        text: "甲斐性",
+        reading: "かいしょう",
+        furigana: [{ruby: "甲", rt: "か"}, {ruby: "斐", rt: "い"}, {ruby: "性", rt: "しょう"}]
+      },
+      {text: "２０歳", reading: "はたち", furigana: [{ruby: "２０歳", rt: "はたち"}]},
+      {
+        text: "可哀想",
+        reading: "かわいそう",
+        furigana: [{ruby: "可", rt: "か"}, {ruby: "哀", rt: "わい"}, {ruby: "想", rt: "そう"}]
+      },
+      {text: "裸足", reading: "はだし", furigana: [{ruby: "裸足", rt: "はだし"}]},
+      {text: "鰐蟹", reading: "わにかに", furigana: [{ruby: "鰐", rt: "わに"}, {ruby: "蟹", rt: "かに"}]},
+      {text: "平壌", reading: "ピョンヤン", furigana: [{ruby: "平", rt: "ピョン"}, {ruby: "壌", rt: "ヤン"}]},
+      {text: "西瓜", reading: "すいか", furigana: [{ruby: "西瓜", rt: "すいか"}]},
+      {
+        text: "瓜実顔",
+        reading: "うりざねがお",
+        furigana: [{ruby: "瓜", rt: "うり"}, {ruby: "実", rt: "ざね"}, {ruby: "顔", rt: "がお"}]
+      },
+      {text: "惜しまない", reading: "おしまない", furigana: [{ruby: "惜", rt: "お"}, "しまない"]},
+    ]
+
+    // Load JMDict data
+    function upsert2<T>(map: BigMapT<T>, key: string, subkey: string, val: T) {
   const hit = map.get(key);
   if (hit) {
     const subhit = hit.get(subkey);
@@ -45,6 +142,23 @@ function upsert2(map: BigMap, key: string, subkey: string, val: string) {
     const subval = new Map([[subkey, [val]]]);
     map.set(key, subval);
   }
+}
+
+const kanjiReadingToFurigana: BigMapT<Furigana[]> = new Map()
+for (const arr of [jmdictFuriganas, nameFuriganas, extraFurigana]) {
+  for (const {text, reading, furigana} of arr) {
+    upsert2(kanjiReadingToFurigana, kata2hira(text), kata2hira(reading), furigana);
+  }
+}
+
+function lookupFurigana(kanji: string, kana: string): Furigana[] {
+  const f = kanjiReadingToFurigana.get(kata2hira(kanji))?.get(kata2hira(kana));
+  // assert(f, `${kanji}/${kana}`);
+  if (!f) {
+    console.log("no known furigana", kanji, kana)
+    return [{ruby: kanji, rt: kana}]
+  }
+  return f[0]
 }
 
 var kanjiToKanaToSenses: BigMap = new Map();
@@ -165,31 +279,37 @@ const lines = wanikani.map((card): undefined|WithGloss => {
     // special rules
     if (skip.has(kanji)) { return; }
     if (customGlosses.has(kanji)) {
-      return { card, glossObj: {gloss: customGlosses.get(kanji)!} }
+      return { card, glossObj: {gloss: customGlosses.get(kanji)!}, furigana: lookupFurigana(kanji, kanas[0]) }
     } else if (kanjiToJmdict.has(kanji)) {
       const id = '' + (kanjiToJmdict.get(kanji) || 0);
       const found = entries?.find(e => e.id === id);
       assert(found)
-      return { card, glossObj: found }
+      return { card, glossObj: found, furigana: lookupFurigana(found.kanji[0].text, found.kana[0].text) }
     } else if (kanji === 'ハチの巣') {
       kanji = '蜂の巣';
       const ids = kanjiToKanaToSenses.get(kata2hira(kanji))?.get(kata2hira(kanas[0]));
       const entries = ids?.map(id => idToDict.get(id))
       assert(entries?.length === 1 && entries[0]);
-      return { card: {...card, kanji}, glossObj: entries[0] }
+      return {
+        card: {...card, kanji}, glossObj: entries[0],
+            furigana: lookupFurigana(entries[0].kanji[0].text, entries[0].kana[0].text)
+      }
     } else if (kanji === '御手洗') {
       kanji = '御手洗い';
       const ids = kanjiToKanaToSenses.get(kata2hira(kanji))?.get(kata2hira(kanas[0]));
       const entries = ids?.map(id => idToDict.get(id)!)
       assert(entries?.length === 1);
-      return { card: {...card, kanji}, glossObj: entries[0] }
+      return {
+        card: {...card, kanji}, glossObj: entries[0],
+            furigana: lookupFurigana(entries[0].kanji[0].text, entries[0].kana[0].text)
+      }
     } else if (kanji === '〜才') {
       // this needs to be a special case because we need to strip 〜 (below) AND provide a specific JMdict id.
       const ids = kanjiToKanaToSenses.get(kata2hira('才'))?.get(kata2hira(kanas[0])) || [];
       const entries = ids?.map(id => idToDict.get(id)!)
       const found = entries.find(s => s.id === '1294940')
       assert(found)
-      return { card, glossObj: found }
+      return { card, glossObj: found, furigana: lookupFurigana(found.kanji[0].text, found.kana[0].text) }
     }
   }
   if (entries) {
@@ -198,7 +318,7 @@ const lines = wanikani.map((card): undefined|WithGloss => {
                    entries.map(e => e.sense.flatMap(o => o.gloss.map(o => o.text))))
       throw new Error('too many entries')
     }
-    return { card, glossObj: entries[0] }
+    return { card, glossObj: entries[0], furigana: lookupFurigana(entries[0].kanji[0].text, entries[0].kana[0].text) }
   } else {
     if (kanji.includes('〜')) {
       const ids = kanjiToKanaToSenses.get(kanji.replace('〜', ''))?.get(kanas[0]);
@@ -207,7 +327,7 @@ const lines = wanikani.map((card): undefined|WithGloss => {
         console.warn(kanji, kanas, entries)
         throw new Error('too many/few entries')
       }
-      return { card, glossObj: entries[0] }
+      return { card, glossObj: entries[0], furigana: lookupFurigana(entries[0].kanji[0].text, entries[0].kana[0].text) }
     } else if (kanji.includes('する')) {
       const ids = kanjiToKanaToSenses.get(kanji.replace('する', ''))?.get(kanas[0].replace('する', ''));
       const entries = ids?.map(id => idToDict.get(id)!)
@@ -215,11 +335,11 @@ const lines = wanikani.map((card): undefined|WithGloss => {
         console.warn(kanji, kanas, entries)
         throw new Error('too many entries')
       }
-      return { card, glossObj: entries[0] }
+      return { card, glossObj: entries[0], furigana: lookupFurigana(entries[0].kanji[0].text, entries[0].kana[0].text) }
     } else {
       // No luck finding JMDict
       console.warn('unable to find', kanji, kanas, entries)
-      return { card, glossObj: {gloss: ''} } // invalid
+      return { card, glossObj: {gloss: ''}, furigana: [] } // invalid
     }
   }
 });
@@ -244,7 +364,7 @@ const lines = wanikani.map((card): undefined|WithGloss => {
     const outputText = (omitWanikaniGloss: boolean): string =>
         linesOk
             .map(s => `${makeSummary(s.card, omitWanikaniGloss)} (${
-                     isCustomGloss(s.glossObj!) ? s.glossObj
+                     isCustomGloss(s.glossObj!) ? s.glossObj.gloss
                                                 : entryToGloss(s.glossObj!, s.card.kanji, s.card.kanas[0])})`)
             .join('\n')
 

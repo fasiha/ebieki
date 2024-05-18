@@ -2,9 +2,10 @@
   "name": "ebieki",
   "version": "1.0.0",
   "description": "",
-  "types": "interfaces.d.ts",
-  "main": "table.json",
+  "types": "index.ts",
+  "main": "index.js",
   "scripts": {
+    "build": "tsc index.ts > index.js",
     "download": "ts-node wanikani-download.ts",
     "table": "ts-node wanikani-parse.ts",
     "distances": "python distances.py",
