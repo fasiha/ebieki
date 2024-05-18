@@ -47,7 +47,7 @@ npm i
 ```
 4. Prepare a Python environment with `sentence_transformers` (see below for a suggestion)
 5. Download and uncompress the following, putting each in the `ebieki` directory that `git` just created:
-   - a recent *English* release from [JMdict-Simplified](https://github.com/scriptin/jmdict-simplified/releases/latest), i.e., ``jmdict-eng-3.5.0.js,on` (note the `eng` for English).
+   - a recent *English* release from [JMdict-Simplified](https://github.com/scriptin/jmdict-simplified/releases/latest), i.e., `jmdict-eng-3.5.0.json` (note the `eng` for English).
    - Also get two recent files from the [JmdictFurigana](https://github.com/Doublevil/JmdictFurigana/releases) project:
      - `JmdictFurigana.json` and
      - `JmnedictFurigana.json`. Put these in the `ebieki` directory too.
