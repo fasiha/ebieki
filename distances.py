@@ -18,7 +18,7 @@ else:
                               convert_to_tensor=True,
                               batch_size=64)
 
-    scores = util.cos_sim(embeddings, embeddings).cpu()
+    scores = np.array(util.cos_sim(embeddings, embeddings).cpu())
 
     np.savez(OUTPUT_DISTANCES, scores=scores)
 print("loaded")
@@ -44,22 +44,40 @@ describe(34)  # woman
 describe(340)  # what month?
 describe(3400)  # obi
 
+
+def hasJmdict(item):
+    return 'id' in item['glossObj']
+
+
+def getJmdict(item):
+    return item['glossObj']['id']
+
+
 for idx, item in enumerate(data):
-    jmdict = item['glossObj']['id'] if 'id' in item['glossObj'] else None
-    if jmdict is None:
-        # simple: ignore the highest score (it'll be 1.0, the item itself)
-        closest = np.argsort(scores[:, idx])[-5:-1][::-1]
-    else:
-        # ignore entries with the same JMDict word id
-        scores_for_different = [
-            score if other['glossObj'].get('id', "") != jmdict else -100
-            for score, other in zip(scores[:, idx], data)
-        ]
-        closest = np.argsort(scores_for_different)[-4:][::-1]
-    item['closest'] = [
-        dict(kanji=data[i]["card"]["kanji"],
-             distance=round(float(scores[i, idx]), 3)) for i in closest
-    ]
+    closest = np.argsort(scores[:, idx])[::-1]
+    topClose = []
+
+    seenGlosses: set[str] = set([item['glossStr']])
+    seenIds: set[str] = set([getJmdict(item)] if hasJmdict(item) else [])
+    for thisIdx in closest:
+        thisItem = data[thisIdx]
+
+        seen = ((hasJmdict(thisItem) and getJmdict(thisItem) in seenIds)
+                or thisItem['glossStr'] in seenGlosses)
+
+        seenGlosses.add(thisItem['glossStr'])
+        if hasJmdict(thisItem):
+            seenIds.add(getJmdict(thisItem))
+
+        if seen:
+            continue
+
+        topClose.append(
+            dict(kanji=data[thisIdx]["card"]["kanji"],
+                 distance=round(float(scores[thisIdx, idx]), 3)))
+
+        if len(topClose) == 5: break
+    item['closest'] = topClose
 
 with open(INPUT_JSON, 'w') as fid:
     json.dump(data, fid, indent=1, ensure_ascii=False)
