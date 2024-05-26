@@ -80,3 +80,8 @@ export interface DependencyGraph {
   kanjiToRadicals: Record<string, string[]>;
   radicalToKanjis: Record<string, string[]>;
 }
+export interface JmdictFurigana {
+  text: string
+  reading: string
+  furigana: Furigana[]
+};

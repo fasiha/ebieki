@@ -1,6 +1,8 @@
 import {readFileSync} from "fs";
 import {join} from "path";
 
+export {entryToGlossParts} from './wanikani-parse';
+
 export * from './interfaces';
 
 import {DependencyGraph, WithDistance} from "./interfaces";

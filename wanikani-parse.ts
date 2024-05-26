@@ -1,7 +1,7 @@
 import assert from 'assert';
 import {existsSync, readdirSync, readFileSync, writeFileSync} from 'fs';
 
-import type {Simplified, Word, Wanikani, PublicGloss, WithGloss, WithExtra, Furigana} from './interfaces';
+import type {Simplified, Word, Wanikani, PublicGloss, WithGloss, WithExtra, Furigana, JmdictFurigana} from './interfaces';
 import {kata2hira} from './kana';
 
 // helpers
@@ -31,11 +31,6 @@ wanikani.sort((a, b) => (a.level < b.level)                     ? -1
                                                                 : 1);
 
 // Load JMdict Furigana data
-interface JmdictFurigana {
-  text: string
-  reading: string
-  furigana: Furigana[]
-}
 // trim because of byte order mark <ugh>
 const jmdictFuriganas: JmdictFurigana[] = JSON.parse(readFileSync('JmdictFurigana.json', 'utf8').trim());
 const nameFuriganas: JmdictFurigana[] = JSON.parse(readFileSync('JmnedictFurigana.json', 'utf8').trim());
@@ -240,7 +235,7 @@ const makeSummary = (card: typeof wanikani[0], omitWanikani = false) => {
   return `${card.kanji} ${card.kanas.join(' ')} (§${card.level}.${card.lesson_position} ${card.gloss})`;
 };
 
-const entryToGlossParts = (entry: Word, kanji: string, kana: string) => {
+export const entryToGlossParts = (entry: Word, kanji: string, kana: string) => {
   const glossStr = entry.sense
                        .filter(sense => (sense.appliesToKanji[0] === '*' || sense.appliesToKanji.includes(kanji)) &&
                                         (sense.appliesToKana[0] === '*' || sense.appliesToKana.includes(kana)))
