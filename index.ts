@@ -1,7 +1,10 @@
 import {readFileSync} from "fs";
-import {join} from "path";
+import {dirname, join} from "path";
+import {fileURLToPath} from 'url';
 
-export {entryToGlossParts} from './wanikani-parse';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+export {entryToGlossParts} from './helpers';
 
 export * from './interfaces';
 

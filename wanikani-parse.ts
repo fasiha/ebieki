@@ -1,8 +1,10 @@
 import assert from 'assert';
 import {existsSync, readdirSync, readFileSync, writeFileSync} from 'fs';
 
-import type {Simplified, Word, Wanikani, PublicGloss, WithGloss, WithExtra, Furigana, JmdictFurigana} from './interfaces';
+import type {
+  Simplified, Word, Wanikani, PublicGloss, WithGloss, WithExtra, Furigana, JmdictFurigana} from './interfaces';
 import {kata2hira} from './kana';
+import {entryToGlossParts} from './helpers';
 
 // helpers
 type BigMapT<T> = Map<string, Map<string, T[]>>;
@@ -235,31 +237,10 @@ const makeSummary = (card: typeof wanikani[0], omitWanikani = false) => {
   return `${card.kanji} ${card.kanas.join(' ')} (§${card.level}.${card.lesson_position} ${card.gloss})`;
 };
 
-export const entryToGlossParts = (entry: Word, kanji: string, kana: string) => {
-  const glossStr = entry.sense
-                       .filter(sense => (sense.appliesToKanji[0] === '*' || sense.appliesToKanji.includes(kanji)) &&
-                                        (sense.appliesToKana[0] === '*' || sense.appliesToKana.includes(kana)))
-                       .filter(sense => ['vulg', 'X', 'arch', 'derog', "obs"].every(bad => !sense.misc.includes(bad)))
-                       .map(sense => sense.gloss.map(g => g.text).join(', '))
-                       .join('; ');
-  const common = entryToCommon(entry, kanji, kana)
-  return { glossStr, common }
-};
-
 const entryToGloss = (entry: Word, kanji: string, kana: string) => {
   const {glossStr, common} = entryToGlossParts(entry, kanji, kana);
   return `${glossStr}. #${entry.id}${common ? ' common!' : ''}`;
 };
-
-const entryToCommon =
-    (entry: Word, kanji: string, kana: string) => {
-      const kanjiCommon = entry.kanji.filter(k => !k.tags.includes('iK') && k.text === kanji).some(k => k.common)
-      const kanaCommon =
-          entry.kana
-              .filter(o => o.text.includes(kana) && (o.appliesToKanji[0] === '*' || o.appliesToKanji.includes(kanji)))
-              .some(k => k.common)
-      return kanaCommon || kanjiCommon;
-    }
 
 // Combine WaniKani with JMDict
 const lines = wanikani.map((card): undefined|WithGloss => {
