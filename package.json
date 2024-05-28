@@ -5,7 +5,7 @@
   "types": "index.ts",
   "main": "index.js",
   "scripts": {
-    "build": "tsc index.ts > index.js",
+    "build": "tsc -p .",
     "download": "ts-node wanikani-download.ts",
     "table": "ts-node wanikani-parse.ts",
     "distances": "python distances.py",
