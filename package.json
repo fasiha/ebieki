@@ -6,10 +6,10 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc index.ts > index.js",
-    "download": "ts-node wanikani-download.ts",
-    "table": "ts-node wanikani-parse.ts",
+    "download": "tsx wanikani-download.ts",
+    "table": "tsx wanikani-parse.ts",
     "distances": "python distances.py",
-    "path": "ts-node wanikani-parse-kanji.ts > path.md"
+    "path": "tsx wanikani-parse-kanji.ts > path.md"
   },
   "keywords": [],
   "author": "",
@@ -22,13 +22,8 @@
     "dotenv": "^8.2.0",
     "node-fetch": "^2.6.0",
     "node-gzip": "^1.1.2",
-    "ts-node": "^8.10.2",
+    "tsx": "^4.21.0",
     "typescript": "^3.9.7",
     "xml2js": "^0.4.23"
-  },
-  "pnpm": {
-    "overrides": {
-      "xml2js@<0.5.0": ">=0.5.0"
-    }
   }
 }
