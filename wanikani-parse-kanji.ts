@@ -92,7 +92,7 @@ const radicalToUnicode: Record<string, string> = {
   cactus: '⿰业丶',
   psychopath: '⿱冖⿰鬯彡',
   satellite: '⿱爫𠙻',
-  elf: '⿰⿱丅耳攵',
+  elf: '⿱丅耳',
   gladiator: '龹',
   'death-star': '俞',
 };
