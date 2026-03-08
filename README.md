@@ -11,6 +11,8 @@ So this repo contains a big table of Wanikani vocabulary† using JMdict definit
 
 **Bonus** I've also run Hugging Face's SentenceTransformers on all definitions and, for each one, identified the four other words that are "semantically closest". This information is in the JSON file (whose shape is described as `WithDistance[]` per [`interfaces.d.ts`](./interfaces.d.ts)).
 
+**Maintainers** See [MAINTAINERS.md](./MAINTAINERS.md) for internal details on how this works and what to do when/if you run this into the future and WaniKani definitions have moved on.
+
 ## Notes
 
 Here's an example few lines from [`table.txt`](table.txt):

@@ -27,6 +27,7 @@ export async function download(subject: Subject, verbose = true) {
       await sleep(500);
       if (verbose) { console.log(url, ret.length); }
     } else {
+      console.error(`Error fetching ${url}: ${fullres.status} ${fullres.statusText}`);
       break;
     }
   }

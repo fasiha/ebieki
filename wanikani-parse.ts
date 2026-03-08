@@ -126,6 +126,22 @@ const extraFurigana: JmdictFurigana[] =
         furigana: [{ruby: "瓜", rt: "うり"}, {ruby: "実", rt: "ざね"}, {ruby: "顔", rt: "がお"}]
       },
       {text: "惜しまない", reading: "おしまない", furigana: [{ruby: "惜", rt: "お"}, "しまない"]},
+      {text: "テーブルの上", reading: "てーぶるのうえ", furigana: ["テーブルの", {ruby: "上", rt: "うえ"}]},
+      {text: "ベッドの下", reading: "べっどのした", furigana: ["ベッドの", {ruby: "下", rt: "した"}]},
+      {text: "３０代", reading: "さんじゅうだい", furigana: [{ruby: "３０", rt: "さんじゅう"}, {ruby: "代", rt: "だい"}]},
+      {text: "１０００万", reading: "いっせんまん", furigana: [{ruby: "１０００", rt: "いっせん"}, {ruby: "万", rt: "まん"}]},
+      {text: "元パートナー", reading: "もとぱーとなー", furigana: [{ruby: "元", rt: "もと"}, "パートナー"]},
+      {text: "他の人", reading: "ほかのひと", furigana: [{ruby: "他", rt: "ほか"}, "の", {ruby: "人", rt: "ひと"}]},
+      {text: "ナポレオン三世", reading: "なぽれおんさんせい", furigana: ["ナポレオン", {ruby: "三", rt: "さん"}, {ruby: "世", rt: "せい"}]},
+      {text: "十分間", reading: "じゅっぷんかん", furigana: [{ruby: "十", rt: "じゅっ"}, {ruby: "分", rt: "ぷん"}, {ruby: "間", rt: "かん"}]},
+      {text: "海魚", reading: "うみざかな", furigana: [{ruby: "海", rt: "うみ"}, {ruby: "魚", rt: "ざかな"}]},
+      {text: "有難う", reading: "ありがとう", furigana: [{ruby: "有", rt: "あり"}, {ruby: "難", rt: "がと"}, "う"]},
+      {text: "岡山城", reading: "おかやまじょう", furigana: [{ruby: "岡山", rt: "おかやま"}, {ruby: "城", rt: "じょう"}]},
+      {text: "第一弾", reading: "だいいちだん", furigana: [{ruby: "第", rt: "だい"}, {ruby: "一", rt: "いち"}, {ruby: "弾", rt: "だん"}]},
+      {text: "素麺", reading: "そうめん", furigana: [{ruby: "素", rt: "そう"}, {ruby: "麺", rt: "めん"}]},
+      {text: "錦市場", reading: "にしきいちば", furigana: [{ruby: "錦", rt: "にしき"}, {ruby: "市場", rt: "いちば"}]},
+      {text: "那智の滝", reading: "なちのたき", furigana: [{ruby: "那智", rt: "なち"}, "の", {ruby: "滝", rt: "たき"}]},
+      {text: "漣斗", reading: "れんと", furigana: [{ruby: "漣", rt: "れん"}, {ruby: "斗", rt: "と"}]},
     ]
 
     // Load JMDict data
@@ -224,15 +240,41 @@ const customGlosses = new Map([
     "惜しまない", "without sparing (effort, funds, etc.)"
     // deleted entry, https://www.edrdg.org/jmwsgi/entr.py?svc=jmdict&sid=&q=1382290
   ],
+  ['テーブルの上', 'on the table'],
+  ['ベッドの下', 'under the bed'],
+  ['元パートナー', 'ex-partner'],
+  ['他の人', 'other people'],
+  ['ナポレオン三世', 'Napoleon III'],
+  ['十分間', 'ten minutes'],
+  ['岡山城', 'Okayama Castle'],
+  ['第一弾', 'first installment'],
+  ['亮平', 'Ryohei'],
+  ['綾乃', 'Ayano'],
+  ['大輔', 'Daisuke'],
+  ['諒一郎', 'Ryoichiro'],
+  ['莉子', 'Riko'],
+  ['錦市場', 'Nishiki Market'],
+  ['瑛斗', 'Eito'],
+  ['遼太', 'Ryota'],
+  ['那智の滝', 'Nachi Falls'],
+  ['拓哉', 'Takuya'],
+  ['菅原', 'Sugahara'],
+  ['梓川', 'Azusagawa'],
+  ['漣斗', 'Rento'],
 ]);
 
+/** For Wanikani kanji+kana pairs that map to multiple Jmdict entries */
 const kanjiToJmdict = new Map([
   ['駆ける', 1244720], ['揚げ', 1545490], ['ばい菌', 1575400], ['恨む', 1289780],   ['卸', 1589530],
   ['三', 1579350],     ['元', 1260670],   ['かき氷', 1399920], ['宝くじ', 1516170], ['ゴミ箱', 1005010],
   ['妻', 1294330],     ['腰', 1288340],   ['河', 1390020],     ['解ける', 1198910], ['名人', 1531680],
   ['共同', 1591660],   ['一位', 1161020], ["撃つ", 1253570],   ['同盟', 1599290],   ['沈黙', 1431810],
-  ['鰐', 1562640]
+  ['鰐', 1562640], ['朝日', 1428500], ['鏡', 1238550], ['統一', 1449670], ['甲斐', 1280250], ['朱', 2273400],
+  ['虹', 1463740], ['伏せる', 1500220]
 ]);
+
+/** For when just Wanikani kanji needs to be mapped to a Jmdict entry, ignoring the kana */
+const kanjiToJmdictKanaOverride = new Map([['海魚', 1773040]])
 
 // Helpers
 const makeSummary = (card: typeof wanikani[0], omitWanikani = false) => {
@@ -285,6 +327,11 @@ const lines = wanikani.map((card): undefined|WithGloss => {
       const found = entries?.find(e => e.id === id);
       assert(found)
       return { card, glossObj: found, furigana: lookupFurigana(found.kanji[0].text, found.kana[0].text) }
+    } else if (kanjiToJmdictKanaOverride.has(kanji)) {
+      const id = '' + (kanjiToJmdictKanaOverride.get(kanji) || 0);
+      const found = idToDict.get(id);
+      assert(found)
+      return { card, glossObj: found, furigana: lookupFurigana(found.kanji[0].text, found.kana[0].text) }
     } else if (kanji === 'ハチの巣') {
       kanji = '蜂の巣';
       const ids = kanjiToKanaToSenses.get(kata2hira(kanji))?.get(kata2hira(kanas[0]));
@@ -310,12 +357,20 @@ const lines = wanikani.map((card): undefined|WithGloss => {
       const found = entries.find(s => s.id === '1294940')
       assert(found)
       return { card, glossObj: found, furigana: lookupFurigana(found.kanji[0].text, found.kana[0].text) }
+    } else if (kanji === '〜ヶ月') {
+      // similar to above
+      const ids = kanjiToKanaToSenses.get(kata2hira(kanji.slice(1)))?.get(kata2hira(kanas[0])) || [];
+      const entries = ids?.map(id => idToDict.get(id)!)
+      // console.dir(entries, {depth: null})
+      const found = entries.find(s => s.id === '1194480')
+      assert(found)
+      return { card, glossObj: found, furigana: lookupFurigana(found.kanji[0].text, found.kana[0].text) }
     }
   }
   if (entries) {
     if (entries.length !== 1) {
       console.warn(kanji, kanas, entries.map(o => o.id),
-                   entries.map(e => e.sense.flatMap(o => o.gloss.map(o => o.text))))
+                   entries.map(e => [e.id, e.sense.flatMap(o => o.gloss.map(o => o.text))]))
       throw new Error('too many entries')
     }
     return { card, glossObj: entries[0], furigana: lookupFurigana(entries[0].kanji[0].text, entries[0].kana[0].text) }
@@ -334,6 +389,15 @@ const lines = wanikani.map((card): undefined|WithGloss => {
       if (entries?.length !== 1) {
         console.warn(kanji, kanas, entries)
         throw new Error('too many entries')
+      }
+      return { card, glossObj: entries[0], furigana: lookupFurigana(entries[0].kanji[0].text, entries[0].kana[0].text) }
+    } else if (kanji.startsWith('お')) {
+      // Drop honorific お prefix (like する-stripping): お菓子屋→菓子屋, お手拭き→手拭き
+      const ids = kanjiToKanaToSenses.get(kata2hira(kanji.slice(1)))?.get(kata2hira(kanas[0].slice(1)));
+      const entries = ids?.map(id => idToDict.get(id)!)
+      if (entries?.length !== 1) {
+        console.warn(kanji, kanas, entries)
+        throw new Error('too many/few entries after お strip')
       }
       return { card, glossObj: entries[0], furigana: lookupFurigana(entries[0].kanji[0].text, entries[0].kana[0].text) }
     } else {
